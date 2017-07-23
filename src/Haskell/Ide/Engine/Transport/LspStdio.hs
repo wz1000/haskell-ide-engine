@@ -177,9 +177,12 @@ mapFileFromVfs verTVar cin vtdi = do
   mvf <- liftIO $ vfsFunc uri
   case (mvf, uriToFilePath uri) of
     (Just (VFS.VirtualFile _ yitext), Just fp) -> do
-      let text = Yi.toString yitext
-      let req = PReq (Just uri) Nothing Nothing (const $ return ())
-                  $ IdeResponseOk <$> GM.loadMappedFileSource fp text
+      let (dir,name) = splitFileName fp
+          mappedName = ".hie-mapped-" <> name
+          mappedFile = dir </> mappedName
+      let req = PReq (Just uri) Nothing Nothing (const $ return ()) $ do
+            liftIO $ Yi.writeFileUsingText mappedFile yitext
+            IdeResponseOk <$> GM.loadMappedFile fp mappedFile
       liftIO $ atomically $ do
         modifyTVar' verTVar (Map.insert uri ver)
         writeTChan cin req
