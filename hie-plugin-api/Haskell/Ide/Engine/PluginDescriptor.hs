@@ -98,13 +98,16 @@ import           GHC(TypecheckedModule)
 import           System.Directory
 import           System.FilePath
 
-import qualified GHC           as GHC
-import qualified GhcMonad      as GHC
-import qualified Hooks         as GHC
-import qualified HscMain       as GHC
-import qualified HscTypes      as GHC
-import qualified TcRnMonad     as GHC
-import qualified DynFlags      as GHC
+import qualified GHC            as GHC
+import qualified GhcMonad       as GHC
+import qualified Hooks          as GHC
+import qualified HscMain        as GHC
+import qualified HscTypes       as GHC
+import qualified TcRnMonad      as GHC
+import qualified DynFlags       as GHC
+import qualified DriverPipeline as GHC
+import qualified DriverPhases   as GHC
+import qualified SysTools       as GHC
 
 -- import StringBuffer
 
@@ -407,9 +410,26 @@ getTypecheckedModuleGhc wrapper targetFile = do
   return (res, mtm)
 
 updateHooks :: FilePath -> FilePath -> IORef HookIORefData -> GHC.Hooks -> GHC.Hooks
-updateHooks _ofp fp ref hooks = hooks {
-        GHC.hscFrontendHook   = Just $ fmap GHC.FrontendTypecheck . hscFrontend fp ref
+updateHooks ofp fp ref hooks = hooks
+      { GHC.hscFrontendHook   = Just $ fmap GHC.FrontendTypecheck . hscFrontend fp ref
+      , GHC.runPhaseHook      = Just $ myRunPhaseHook fp ofp
       }
+
+
+myRunPhaseHook :: FilePath -> FilePath -> GHC.PhasePlus -> FilePath -> GHC.DynFlags -> GHC.CompPipeline (GHC.PhasePlus, FilePath)
+myRunPhaseHook mfp ofp p@(GHC.RealPhase (GHC.Cpp _) ) fp df = do
+  env <- GHC.getPipeEnv
+  src <- liftIO $ canonicalizePath $ GHC.src_filename env
+  debugm $ "src file: " ++ src
+  if mfp == src then do
+    fp' <- liftIO $ GHC.newTempName df (takeExtension fp)
+    let msg = "Copying `" ++ fp ++"' to `" ++ fp' ++ "'"
+        line_prag = Just ("{-# LINE 1 \"" ++ ofp ++ "\" #-}\n")
+    liftIO $ GHC.copyWithHeader df msg line_prag fp fp'
+    GHC.runPhase p fp' df
+  else
+    GHC.runPhase p fp df
+myRunPhaseHook _ _ p fp df = GHC.runPhase p fp df
 
 -- discards all changes to Session
 runGhcInHsc :: GHC.Ghc a -> GHC.Hsc a
