@@ -14,9 +14,7 @@ import           Data.Maybe
 import           Data.Bifunctor
 --import           Data.List (intercalate)
 import qualified Data.Text as T
-import           Data.Vinyl
 import           Haskell.Ide.Engine.PluginDescriptor
-import           Haskell.Ide.Engine.PluginUtils
 import           Haskell.Ide.Engine.ExtensibleState
 import           Control.Monad.IO.Class
 import           Hoogle
@@ -30,25 +28,17 @@ import Text.HTML.TagSoup.Tree
 
 -- ---------------------------------------------------------------------
 
-hoogleDescriptor :: TaggedPluginDescriptor _
+hoogleDescriptor :: PluginDescriptor
 hoogleDescriptor = PluginDescriptor
   {
-    pdUIShortName = "hoogle"
-  , pdUIOverview = ("Hoogle is a Haskell API search engine, which allows you to search "
+    pluginName = "hoogle"
+  , pluginDesc = ("Hoogle is a Haskell API search engine, which allows you to search "
            <> "many standard Haskell libraries by either function name, or by approximate "
            <> "type signature. ")
-  , pdCommands =
-         buildCommand infoCmd (Proxy :: Proxy "info") "Look up the documentation for an identifier in the hoogle database"
-                     [] (SCtxNone :& RNil)
-                     (  SParamDesc (Proxy :: Proxy "expr") (Proxy :: Proxy "The identifier to lookup") SPtText SRequired
-                     :& RNil) SaveNone
-      :& buildCommand lookupCmd (Proxy :: Proxy "lookup") "Search the hoogle database with a string"
-                     [] (SCtxNone :& RNil)
-                     (  SParamDesc (Proxy :: Proxy "term") (Proxy :: Proxy "The term to search for in the hoogle database") SPtText SRequired
-                     :& RNil) SaveNone
-      :& RNil
-  , pdExposedServices = []
-  , pdUsedServices    = []
+  , pluginCommands =
+      [ PluginCommand "info" "Look up the documentation for an identifier in the hoogle database" infoCmd
+      , PluginCommand "lookup" "Search the hoogle database with a string" lookupCmd
+      ]
   }
 
 -- ---------------------------------------------------------------------
@@ -98,13 +88,10 @@ getHoogleDbLoc = do
         liftIO defaultDatabaseLocation
 
 
-infoCmd :: CommandFunc T.Text
-infoCmd = CmdSync $ \_ctxs req -> do
-  case getParams (IdText "expr" :& RNil) req of
-    Left err -> return err
-    Right (ParamText expr :& RNil) -> do
-      _ <- initializeHoogleDb
-      bimap hoogleErrorToIdeError id <$> infoCmd' expr
+infoCmd :: CommandFunc T.Text T.Text
+infoCmd = CmdSync $ \expr -> do
+  _ <- initializeHoogleDb
+  bimap hoogleErrorToIdeError id <$> infoCmd' expr
 
 infoCmd' :: T.Text -> IdeM (Either HoogleError T.Text)
 infoCmd' expr = do
@@ -146,11 +133,8 @@ renderTarget t = T.intercalate "\n\n" $
 
 ------------------------------------------------------------------------
 
-lookupCmd :: CommandFunc [T.Text]
-lookupCmd = CmdSync $ \_ctxs req ->
-  case getParams (IdText "term" :& RNil) req of
-    Left err -> return err
-    Right (ParamText term :& RNil) -> do
+lookupCmd :: CommandFunc T.Text [T.Text]
+lookupCmd = CmdSync $ \term -> do
       _ <- initializeHoogleDb
       bimap hoogleErrorToIdeError id <$> lookupCmd' 10 term
 

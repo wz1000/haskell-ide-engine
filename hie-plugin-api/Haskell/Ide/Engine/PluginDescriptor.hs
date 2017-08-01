@@ -1,6 +1,6 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -10,10 +10,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 -- | Experimenting with a data structure to define a plugin.
 --
 -- The general idea is that a given plugin returns this structure during the
@@ -32,36 +30,21 @@
 
 module Haskell.Ide.Engine.PluginDescriptor
   (
-    PluginDescriptor(..)
-  , Service(..)
-
-  -- * Commands
-  , Command(..)
-  , TaggedCommand
-  , UntaggedCommand
-  , CommandFunc(..), SyncCommandFunc, AsyncCommandFunc
-  , buildCommand
-  , Async
-  , Callback
-
   -- * Plugins
-  , Plugins
-
+    PluginId
+  , CommandName
+  , CommandFunc(..)
+  , PluginDescriptor(..)
+  , PluginCommand(..)
+  , IdePlugins(..)
   -- * The IDE monad
   , IdeM
   , IdeState(..)
   , ExtensionClass(..)
   , ModuleCache(..)
   , getPlugins
-  , untagPluginDescriptor
-  , TaggedPluginDescriptor
-  , UntaggedPluginDescriptor
-  , NamedCommand(..)
-  , CommandType(..)
-  , Rec(..)
-  , Proxy(..)
-  , recordToList'
-  , ValidResponse
+  , runPluginCommand
+  , pluginDescToIdePlugins
   , CachedModule(..)
   , getCachedModule
   , withCachedModule
@@ -80,18 +63,14 @@ module Haskell.Ide.Engine.PluginDescriptor
   , module Haskell.Ide.Engine.PluginTypes
   ) where
 
-import           Control.Applicative
-import           Control.Monad.State.Strict
 import           Data.Aeson
+import           Control.Monad.State.Strict
 import           Data.Dynamic
 import           Data.Maybe
+import           Data.Monoid
+import           Data.List
 import qualified Data.Map as Map
-import           Data.Singletons
 import qualified Data.Text as T
-import           Data.Vinyl
-import qualified Data.Vinyl.Functor as Vinyl
-import           GHC.Generics
-import           GHC.TypeLits
 import           Haskell.Ide.Engine.PluginTypes
 import           Haskell.Ide.Engine.MonadFunctions
 import qualified GhcMod.Monad as GM
@@ -101,6 +80,7 @@ import qualified GhcMod.Target as GM
 import           GHC(TypecheckedModule)
 import           System.Directory
 import           System.FilePath
+import           GHC.Generics
 
 import qualified Data.IntervalMap.FingerTree as IM
 -- import qualified GHC.SYB.Utils as SYB
@@ -122,140 +102,61 @@ import qualified DynFlags      as GHC
 import Data.IORef
 
 -- ---------------------------------------------------------------------
-type ValidResponse a = (FromJSON a, ToJSON a, Typeable a)
 
-data PluginDescriptor cmds = PluginDescriptor
-  { pdUIShortName     :: !T.Text
-  , pdUIOverview     :: !T.Text
-  , pdCommands        :: cmds
-  , pdExposedServices :: [Service]
-  , pdUsedServices    :: [Service]
-  }
+type PluginId = T.Text
+type CommandName = T.Text
 
-type TaggedPluginDescriptor cmds = PluginDescriptor (Rec NamedCommand cmds)
+data CommandFunc a b = CmdSync (a -> IdeM (IdeResponse b))
+                     | CmdAsync ((IdeResponse b -> IO ()) -> a -> IdeM ())
 
-type UntaggedPluginDescriptor = PluginDescriptor [UntaggedCommand]
+data PluginCommand = forall a b. (FromJSON a, ToJSON b) =>
+  PluginCommand { commandName :: CommandName
+                , commandDesc :: T.Text
+                , commandFunc :: CommandFunc a b
+                }
 
-instance Show UntaggedPluginDescriptor where
-  showsPrec p (PluginDescriptor name oview cmds svcs used) = showParen (p > 10) $
-    showString "PluginDescriptor " .
-    showString (T.unpack name) .
-    showString (T.unpack oview) .
-    showList cmds .
-    showString " " .
-    showList svcs .
-    showString " " .
-    showList used
+data PluginDescriptor =
+  PluginDescriptor { pluginName :: T.Text
+                   , pluginDesc :: T.Text
+                   , pluginCommands :: [PluginCommand]
+                   }
 
-data Service = Service
-  { svcName :: T.Text
-  -- , svcXXX :: undefined
-  } deriving (Show,Eq,Ord,Generic)
+instance Show PluginCommand where
+  show (PluginCommand name _ _) = "PluginCommand { name = " ++ T.unpack name ++ " }"
 
-recordToList' :: (forall a. f a -> b) -> Rec f as -> [b]
-recordToList' f = recordToList . rmap (Vinyl.Const . f)
+-- | Subset type extracted from 'Plugins' to be sent to the IDE as
+-- a description of the available commands
+newtype IdePlugins = IdePlugins
+  { ipMap :: Map.Map PluginId [PluginCommand]
+  } deriving (Show,Generic)
 
-untagPluginDescriptor :: TaggedPluginDescriptor cmds -> UntaggedPluginDescriptor
-untagPluginDescriptor pluginDescriptor =
-  pluginDescriptor {pdCommands =
-                      recordToList' untagCommand
-                                    (pdCommands pluginDescriptor)}
-
-type Plugins = Map.Map PluginId UntaggedPluginDescriptor
-
-untagCommand :: NamedCommand t -> UntaggedCommand
-untagCommand (NamedCommand _ (Command desc func)) =
-  Command (desc {cmdContexts =
-                   recordToList' fromSing
-                                 (cmdContexts desc)
-                ,cmdAdditionalParams =
-                   recordToList' untagParamDesc
-                                 (cmdAdditionalParams desc)})
-          func
-
--- | Ideally a Command is defined in such a way that its CommandDescriptor
--- can be exposed via the native CLI for the tool being exposed as well.
--- Perhaps use Options.Applicative for this in some way.
-data Command desc = forall a. (ValidResponse a) => Command
-  { cmdDesc :: !desc
-  , cmdFunc :: !(CommandFunc a)
-  }
-
-type TaggedCommand cxts tags
-  = Command (TaggedCommandDescriptor cxts tags)
-type UntaggedCommand = Command UntaggedCommandDescriptor
-
-instance Show desc => Show (Command desc) where
-  show (Command desc _func) = "(Command " ++ show desc ++ ")"
-
-data NamedCommand (t :: CommandType) where
-        NamedCommand ::
-            KnownSymbol s =>
-            Proxy s ->
-            TaggedCommand cxts tags ->
-            NamedCommand ('CommandType s cxts tags)
-
-data CommandType = CommandType Symbol [AcceptedContext] [ParamDescType]
-
--- | Build a command, ensuring the command response type name and the command
--- function match
-buildCommand :: forall a s cxts tags. (ValidResponse a, KnownSymbol s)
-  => CommandFunc a
-  -> Proxy s
-  -> T.Text
-  -> [T.Text]
-  -> Rec SAcceptedContext cxts
-  -> Rec SParamDescription tags
-  -> Save
-  -> NamedCommand ( 'CommandType s cxts tags )
-buildCommand fun n d exts ctxs parm save =
-  NamedCommand n $
-  Command {cmdDesc =
-            CommandDesc {cmdName = T.pack $ symbolVal n
-                        ,cmdUiDescription = d
-                        ,cmdFileExtensions = exts
-                        ,cmdContexts = ctxs
-                        ,cmdAdditionalParams = parm
-                        ,cmdReturnType =
-                           T.pack $ show $ typeOf (undefined :: a)
-                        ,cmdSave = save}
-          ,cmdFunc = fun}
+instance ToJSON IdePlugins where
+  toJSON (IdePlugins m) = toJSON $ (fmap . fmap) (\x -> (commandName x, commandDesc x)) m
 
 -- ---------------------------------------------------------------------
+pluginDescToIdePlugins :: [(PluginId,PluginDescriptor)] -> IdePlugins
+pluginDescToIdePlugins = IdePlugins . foldr (uncurry Map.insert . f) Map.empty
+  where f = fmap pluginCommands
 
--- | The 'CommandFunc' is called once the dispatcher has checked that it
--- satisfies at least one of the `AcceptedContext` values for the command
--- descriptor, and has all the required parameters. Where a command has only one
--- allowed context the supplied context list does not add much value, but allows
--- easy case checking when multiple contexts are supported.
-data CommandFunc resp = CmdSync (SyncCommandFunc resp)
-                      | CmdAsync (AsyncCommandFunc resp)
-                        -- ^ Note: does not forkIO, the command must decide when
-                        -- to do this.
-
-type SyncCommandFunc resp
-                = [AcceptedContext] -> IdeRequest -> IdeM (IdeResponse resp)
-
-type AsyncCommandFunc resp = (IdeResponse resp -> IO ())
-               -> [AcceptedContext] -> IdeRequest -> IdeM ()
-
-type Callback a = IdeResponse a -> IO ()
-type Async a = Callback a -> IO ()
-
--- -------------------------------------
--- JSON instances
-
-
-instance ToJSON Service where
-  toJSON service = object [ "name" .= svcName service ]
-
-
-instance FromJSON Service where
-  parseJSON (Object v) =
-    Service <$> v .: "name"
-  parseJSON _ = empty
-
-
+runPluginCommand :: PluginId -> CommandName -> Value -> (IdeResponse Value -> IO ()) -> IdeM ()
+runPluginCommand p com arg callback = do
+  let ret = liftIO . callback
+  (IdePlugins m) <- getPlugins
+  case Map.lookup p m of
+    Nothing -> ret $
+      IdeResponseFail $ IdeError UnknownPlugin ("Plugin " <> p <> " doesn't exist") Null
+    Just xs -> case find ((com ==) . commandName) xs of
+      Nothing -> ret $ IdeResponseFail $
+        IdeError UnknownCommand ("Command " <> com <> " isn't defined for plugin " <> p <> ". Legal commands are: " <> T.pack(show $ map commandName xs)) Null
+      Just (PluginCommand _ _ cf) -> case fromJSON arg of
+        Error err -> ret $ IdeResponseFail $
+          IdeError ParameterError ("error while parsing args for " <> com <> " in plugin " <> p <> ": " <> T.pack err) Null
+        Success a -> case cf of
+          CmdSync f -> do
+            res <- f a
+            ret $ fmap toJSON res
+          CmdAsync f -> do
+            f (callback . fmap toJSON) a
 -- ---------------------------------------------------------------------
 
 type IdeM = IdeT IO
@@ -263,7 +164,7 @@ type IdeT m = GM.GhcModT (StateT IdeState m)
 
 data IdeState = IdeState
   {
-    idePlugins :: Plugins
+    idePlugins :: IdePlugins
   , extensibleState :: !(Map.Map TypeRep Dynamic)
               -- ^ stores custom state information.
   , cradleCache :: !(Map.Map FilePath GM.Cradle)
@@ -427,7 +328,7 @@ oldRangeToNew cm (Range start end) = do
   end'   <- oldPosToNew cm end
   return (Range start' end')
 
-getPlugins :: IdeM Plugins
+getPlugins :: IdeM IdePlugins
 getPlugins = lift $ lift $ idePlugins <$> get
 
 -- ---------------------------------------------------------------------

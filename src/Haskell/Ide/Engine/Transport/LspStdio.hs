@@ -31,7 +31,6 @@ import           Data.Char (isUpper, isAlphaNum)
 import           Data.Default
 import           Data.Maybe
 import           Data.Monoid ( (<>) )
-import           Data.Either
 import           Data.Function
 import           Data.List
 import qualified Data.HashMap.Strict as H
@@ -71,17 +70,17 @@ import Name
 
 -- ---------------------------------------------------------------------
 
-lspStdioTransport :: Plugins -> (DispatcherEnv -> IO ()) -> TChan PluginRequest -> FilePath -> IO ()
-lspStdioTransport plugins hieDispatcherProc cin origDir = do
-  run plugins hieDispatcherProc cin origDir >>= \case
+lspStdioTransport :: (DispatcherEnv -> IO ()) -> TChan PluginRequest -> FilePath -> IO ()
+lspStdioTransport hieDispatcherProc cin origDir = do
+  run hieDispatcherProc cin origDir >>= \case
     0 -> exitSuccess
     c -> exitWith . ExitFailure $ c
 
 
 -- ---------------------------------------------------------------------
 
-run :: Plugins -> (DispatcherEnv -> IO ()) -> TChan PluginRequest -> FilePath -> IO Int
-run plugins dispatcherProc cin origDir = flip E.catches handlers $ do
+run :: (DispatcherEnv -> IO ()) -> TChan PluginRequest -> FilePath -> IO Int
+run dispatcherProc cin origDir = flip E.catches handlers $ do
 
   rin  <- atomically newTChan :: IO (TChan ReactorInput)
   let
@@ -94,7 +93,7 @@ run plugins dispatcherProc cin origDir = flip E.catches handlers $ do
             , wipReqsTVar    = wipTVar
             , docVersionTVar = versionTVar
             }
-      _rpid <- forkIO $ flip runReaderT lf $ reactor dispatcherEnv plugins cin rin
+      _rpid <- forkIO $ flip runReaderT lf $ reactor dispatcherEnv cin rin
       dispatcherProc dispatcherEnv
       return Nothing
 
@@ -280,8 +279,8 @@ sendErrorLog msg = reactorSend' (`Core.sendErrorLogS` msg)
 -- | The single point that all events flow through, allowing management of state
 -- to stitch replies and requests together from the two asynchronous sides: lsp
 -- server and hie dispatcher
-reactor :: DispatcherEnv -> Plugins -> TChan PluginRequest -> TChan ReactorInput -> R ()
-reactor (DispatcherEnv cancelReqTVar wipTVar versionTVar) plugins cin inp = do
+reactor :: DispatcherEnv -> TChan PluginRequest -> TChan ReactorInput -> R ()
+reactor (DispatcherEnv cancelReqTVar wipTVar versionTVar) cin inp = do
   let makeRequest req@(PReq _ Nothing (Just lid) _ _) = liftIO $ atomically $ do
         modifyTVar wipTVar (S.insert lid)
         writeTChan cin req
@@ -466,7 +465,7 @@ reactor (DispatcherEnv cancelReqTVar wipTVar versionTVar) plugins cin inp = do
       Core.ReqCodeAction req -> do
         liftIO $ U.logs $ "reactor:got CodeActionRequest:" ++ show req
         let params = req ^. J.params
-            doc = params ^. J.textDocument
+            doc = params ^. J.textDocument . J.uri
             (J.List diags) = params ^. J.context . J.diagnostics
 
         let
@@ -477,10 +476,7 @@ reactor (DispatcherEnv cancelReqTVar wipTVar versionTVar) plugins cin inp = do
               -- NOTE: the cmd needs to be registered via the InitializeResponse message. See hieOptions above
               cmd = "applyrefact:applyOne"
               -- need 'file' and 'start_pos'
-              args = J.Array$ V.fromList
-                      [ J.object ["file" .= J.object ["textDocument" .= doc]]
-                      , J.object ["start_pos" .= J.object ["position" .= start]]
-                      ]
+              args = J.Array $ V.singleton $ J.toJSON $ ApplyRefact.AOP doc start
               cmdparams = Just args
           makeCommand (J.Diagnostic _r _s _c _source _m  ) = []
           -- TODO: make context specific commands for all sorts of things, such as refactorings
@@ -500,14 +496,9 @@ reactor (DispatcherEnv cancelReqTVar wipTVar versionTVar) plugins cin inp = do
 
 
         --liftIO $ U.logs $ "reactor:ExecuteCommandRequest:margs=" ++ show margs
-        cmdparams <- case margs of
-              Nothing -> return []
-              Just (J.List os) -> do
-                let (lts,rts) = partitionEithers $ map convertParam os
-                -- TODO:AZ: return an error if any parse errors found.
-                unless (null lts) $
-                  liftIO $ U.logs $ "\n\n****reactor:ExecuteCommandRequest:error converting params=" ++ show lts ++ "\n\n"
-                return rts
+        let cmdparams = case margs of
+              Just (J.List (x:_)) -> x
+              _ -> J.Null
         callback <- hieResponseHelper (req ^. J.id) $ \obj -> do
           liftIO $ U.logs $ "ExecuteCommand response got:r=" ++ show obj
           case J.fromJSON obj of
@@ -518,10 +509,9 @@ reactor (DispatcherEnv cancelReqTVar wipTVar versionTVar) plugins cin inp = do
               liftIO $ U.logs $ "ExecuteCommand sending edit: " ++ show msg
               reactorSend msg
             _ -> reactorSend $ Core.makeResponseMessage req obj
-        let (plugin,cmd) = break (==':') (T.unpack command)
-        let ireq = IdeRequest (T.pack $ tail cmd) (Map.fromList cmdparams)
-            preq = PReq Nothing Nothing (Just $ req ^. J.id) callback
-                     $ dispatchSync plugins (T.pack plugin) ireq
+        let (plugin,cmd) = T.break (==':') command
+        let preq = PReq Nothing Nothing (Just $ req ^. J.id) (const $ return ())
+                     $ runPluginCommand plugin (T.drop 1 cmd) cmdparams callback
         makeRequest preq
 
       -- -------------------------------
@@ -701,21 +691,6 @@ requestDiagnostics cin file ver = do
   liftIO $ atomically $ writeTChan cin reqg
 
 -- ---------------------------------------------------------------------
-
-convertParam :: J.Value -> Either String (ParamId, ParamValP)
-convertParam (J.Object hm) = case H.toList hm of
-  [(k,v)] -> case J.fromJSON v :: J.Result LspParam of
-             J.Success pv -> Right (k, lspParam2ParamValP pv)
-             J.Error errStr -> Left $ "convertParam: could not decode parameter value for "
-                               ++ show k ++ ", err=" ++ errStr
-  _       -> Left $ "convertParam: expecting a single key/value, got:" ++ show hm
-convertParam v = Left $ "convertParam: expecting Object, got:" ++ show v
-
-lspParam2ParamValP :: LspParam -> ParamValP
-lspParam2ParamValP (LspTextDocument (TextDocumentIdentifier u)) = ParamFileP u
-lspParam2ParamValP (LspPosition     p)                = ParamPosP p
-lspParam2ParamValP (LspRange        (Range from _to)) = ParamPosP from
-lspParam2ParamValP (LspText         txt             ) = ParamTextP txt
 
 data LspParam
   = LspTextDocument TextDocumentIdentifier

@@ -26,7 +26,7 @@ import           Data.Semigroup
 
 brittanyCmd :: Int -> TextDocumentIdentifier -> Maybe Range -> IdeM (IdeResponse [J.TextEdit])
 brittanyCmd tabSize tdi range =
-  pluginGetFile "brittanyCmd: " (tdi ^. J.uri) $ \file -> do
+  pluginGetFile "brittanyCmd: " (tdi ^. J.uri) $ \file ->
     case range of
       Just r -> do
         text <- GM.withMappedFile file $ liftIO . T.readFile
@@ -46,7 +46,7 @@ brittanyCmd tabSize tdi range =
           Right newText -> do
             let startPos = Position 0 0
                 endPos = toPos (l,c+1)
-                l = length $ textLines
+                l = length textLines
                 c = T.length $ last textLines
                 textLines = T.lines text
                 textEdit = J.TextEdit (Range startPos endPos) newText

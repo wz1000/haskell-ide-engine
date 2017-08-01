@@ -22,7 +22,6 @@ library
                      , ghc-dump-tree
                      , ghc-mod
                      , hie-base
-                     , hie-ghc-mod
                      , hie-plugin-api
                      , text
                      , unordered-containers

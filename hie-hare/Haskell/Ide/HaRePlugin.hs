@@ -1,14 +1,12 @@
-{-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
-
 {-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RankNTypes            #-}
-{-# LANGUAGE ScopedTypeVariables   #-}
-{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE NamedFieldPuns        #-}
-{-# LANGUAGE BangPatterns          #-}
+
 
 module Haskell.Ide.HaRePlugin where
 
@@ -17,6 +15,7 @@ import           Control.Monad.State
 import           Control.Monad.Trans.Control
 import           Control.Monad.Trans.Either
 import           Data.Aeson
+import qualified Data.Aeson.Types as J
 import           Data.Either
 import           Data.Foldable
 import qualified Data.Map                                     as Map
@@ -28,6 +27,7 @@ import qualified Data.Text.IO                                 as T
 import           Data.Typeable
 import           Exception
 import           GHC
+import           GHC.Generics (Generic)
 import qualified GhcMod.Error                                 as GM
 import qualified GhcMod.Monad                                 as GM
 import qualified GhcMod.Utils                                 as GM
@@ -55,56 +55,69 @@ import           FastString
 import           Haskell.Ide.GhcModPlugin (setTypecheckedModule)
 -- ---------------------------------------------------------------------
 
-hareDescriptor :: TaggedPluginDescriptor _
+hareDescriptor :: PluginDescriptor
 hareDescriptor = PluginDescriptor
-  {
-    pdUIShortName = "HaRe"
-  , pdUIOverview = "A Haskell 2010 refactoring tool. HaRe supports the full "
+  { pluginName = "HaRe"
+  , pluginDesc = "A Haskell 2010 refactoring tool. HaRe supports the full "
               <> "Haskell 2010 standard, through making use of the GHC API.  HaRe attempts to "
               <> "operate in a safe way, by first writing new files with proposed changes, and "
               <> "only swapping these with the originals when the change is accepted. "
-    , pdCommands =
-        buildCommand demoteCmd (Proxy :: Proxy "demote") "Move a definition one level down"
-                    [".hs"] (SCtxPoint :& RNil) RNil SaveAll
-
-      :& buildCommand dupdefCmd (Proxy :: Proxy "dupdef") "Duplicate a definition"
-                     [".hs"] (SCtxPoint :& RNil)
-                     (  SParamDesc (Proxy :: Proxy "name") (Proxy :: Proxy "the new name") SPtText SRequired
-                     :& RNil) SaveAll
-
-      :& buildCommand iftocaseCmd (Proxy :: Proxy "iftocase") "Converts an if statement to a case statement"
-                     [".hs"] (SCtxRegion :& RNil) RNil SaveAll
-
-      :& buildCommand liftonelevelCmd (Proxy :: Proxy "liftonelevel") "Move a definition one level up from where it is now"
-                     [".hs"] (SCtxPoint :& RNil) RNil SaveAll
-
-      :& buildCommand lifttotoplevelCmd (Proxy :: Proxy "lifttotoplevel") "Move a definition to the top level from where it is now"
-                     [".hs"] (SCtxPoint :& RNil) RNil SaveAll
-
-      :& buildCommand renameCmd (Proxy :: Proxy "rename") "rename a variable or type"
-                     [".hs"] (SCtxPoint :& RNil)
-                     (  SParamDesc (Proxy :: Proxy "name") (Proxy :: Proxy "the new name") SPtText SRequired
-                     :& RNil) SaveAll
-
-      :& buildCommand deleteDefCmd (Proxy :: Proxy "deletedef") "Delete a definition"
-                    [".hs"] (SCtxPoint :& RNil) RNil SaveAll
-
-      :& buildCommand genApplicativeCommand (Proxy :: Proxy "genapplicative") "Generalise a monadic function to use applicative"
-                    [".hs"] (SCtxPoint :& RNil) RNil SaveAll
-
-      :& RNil
-  , pdExposedServices = []
-  , pdUsedServices    = []
+  , pluginCommands =
+      [ PluginCommand "demote" "Move a definition one level down"
+          demoteCmd
+      , PluginCommand "dupdef" "Duplicate a definition"
+          dupdefCmd
+      , PluginCommand "iftocase" "Converts an if statement to a case statement"
+          iftocaseCmd
+      , PluginCommand "liftonelevel" "Move a definition one level up from where it is now"
+          liftonelevelCmd
+      , PluginCommand "lifttotoplevel" "Move a definition to the top level from where it is now"
+          lifttotoplevelCmd
+      , PluginCommand "rename" "rename a variable or type"
+          renameCmd
+      , PluginCommand "deletedef" "Delete a definition"
+          deleteDefCmd
+      , PluginCommand "genapplicative" "Generalise a monadic function to use applicative"
+          genApplicativeCommand
+      ]
   }
 
 -- ---------------------------------------------------------------------
 
-demoteCmd :: CommandFunc WorkspaceEdit
-demoteCmd  = CmdSync $ \_ctxs req ->
-  case getParams (IdFile "file" :& IdPos "start_pos" :& RNil) req of
-    Left err -> return err
-    Right (ParamFile uri :& ParamPos pos :& RNil) ->
-      demoteCmd' (TextDocumentPositionParams (TextDocumentIdentifier uri) pos)
+customOptions :: Int -> J.Options
+customOptions n = J.defaultOptions { J.fieldLabelModifier = J.camelTo2 '_' . drop n}
+
+data HarePoint =
+  HP { hpFile :: Uri
+     , hpPos :: Position
+     } deriving Generic
+
+instance FromJSON HarePoint where
+  parseJSON = genericParseJSON $ customOptions 2
+
+data HarePointWithText =
+  HPT { hptFile :: Uri
+      , hptPos :: Position
+      , hptText :: T.Text
+      } deriving Generic
+
+instance FromJSON HarePointWithText where
+  parseJSON = genericParseJSON $ customOptions 3
+
+data HareRange =
+  HR { hrFile :: Uri
+     , hrStartPos :: Position
+     , hrEndPos :: Position
+     } deriving Generic
+
+instance FromJSON HareRange where
+  parseJSON = genericParseJSON $ customOptions 2
+
+-- ---------------------------------------------------------------------
+
+demoteCmd :: CommandFunc HarePoint WorkspaceEdit
+demoteCmd  = CmdSync $ \(HP uri pos) ->
+  demoteCmd' (TextDocumentPositionParams (TextDocumentIdentifier uri) pos)
 
 demoteCmd' :: TextDocumentPositionParams -> IdeM (IdeResponse WorkspaceEdit)
 demoteCmd' (TextDocumentPositionParams tdi pos) =
@@ -115,12 +128,9 @@ demoteCmd' (TextDocumentPositionParams tdi pos) =
 
 -- ---------------------------------------------------------------------
 
-dupdefCmd :: CommandFunc WorkspaceEdit
-dupdefCmd = CmdSync $ \_ctxs req ->
-  case getParams (IdFile "file" :& IdPos "start_pos" :& IdText "name" :& RNil) req of
-    Left err -> return err
-    Right (ParamFile uri :& ParamPos pos :& ParamText name :& RNil) ->
-      dupdefCmd' (TextDocumentPositionParams (TextDocumentIdentifier uri) pos) name
+dupdefCmd :: CommandFunc HarePointWithText WorkspaceEdit
+dupdefCmd = CmdSync $ \(HPT uri pos name) ->
+  dupdefCmd' (TextDocumentPositionParams (TextDocumentIdentifier uri) pos) name
 
 dupdefCmd' :: TextDocumentPositionParams -> T.Text -> IdeM (IdeResponse WorkspaceEdit)
 dupdefCmd' (TextDocumentPositionParams tdi pos) name =
@@ -131,12 +141,9 @@ dupdefCmd' (TextDocumentPositionParams tdi pos) name =
 
 -- ---------------------------------------------------------------------
 
-iftocaseCmd :: CommandFunc WorkspaceEdit
-iftocaseCmd = CmdSync $ \_ctxs req ->
-  case getParams (IdFile "file" :& IdPos "start_pos" :& IdPos "end_pos" :& RNil) req of
-    Left err -> return err
-    Right (ParamFile uri :& ParamPos startPos :& ParamPos endPos :& RNil) ->
-      iftocaseCmd' (Location uri (Range startPos endPos))
+iftocaseCmd :: CommandFunc HareRange WorkspaceEdit
+iftocaseCmd = CmdSync $ \(HR uri startPos endPos) ->
+  iftocaseCmd' (Location uri (Range startPos endPos))
 
 iftocaseCmd' :: Location -> IdeM (IdeResponse WorkspaceEdit)
 iftocaseCmd' (Location uri (Range startPos endPos)) =
@@ -147,12 +154,9 @@ iftocaseCmd' (Location uri (Range startPos endPos)) =
 
 -- ---------------------------------------------------------------------
 
-liftonelevelCmd :: CommandFunc WorkspaceEdit
-liftonelevelCmd = CmdSync $ \_ctxs req ->
-  case getParams (IdFile "file" :& IdPos "start_pos" :& RNil) req of
-    Left err -> return err
-    Right (ParamFile uri :& ParamPos pos :& RNil) ->
-      liftonelevelCmd' (TextDocumentPositionParams (TextDocumentIdentifier uri) pos)
+liftonelevelCmd :: CommandFunc HarePoint WorkspaceEdit
+liftonelevelCmd = CmdSync $ \(HP uri pos) ->
+  liftonelevelCmd' (TextDocumentPositionParams (TextDocumentIdentifier uri) pos)
 
 liftonelevelCmd' :: TextDocumentPositionParams -> IdeM (IdeResponse WorkspaceEdit)
 liftonelevelCmd' (TextDocumentPositionParams tdi pos) =
@@ -163,12 +167,9 @@ liftonelevelCmd' (TextDocumentPositionParams tdi pos) =
 
 -- ---------------------------------------------------------------------
 
-lifttotoplevelCmd :: CommandFunc WorkspaceEdit
-lifttotoplevelCmd = CmdSync $ \_ctxs req ->
-  case getParams (IdFile "file" :& IdPos "start_pos" :& RNil) req of
-    Left err -> return err
-    Right (ParamFile uri :& ParamPos pos :& RNil) ->
-      lifttotoplevelCmd' (TextDocumentPositionParams (TextDocumentIdentifier uri) pos)
+lifttotoplevelCmd :: CommandFunc HarePoint WorkspaceEdit
+lifttotoplevelCmd = CmdSync $ \(HP uri pos) ->
+  lifttotoplevelCmd' (TextDocumentPositionParams (TextDocumentIdentifier uri) pos)
 
 lifttotoplevelCmd' :: TextDocumentPositionParams -> IdeM (IdeResponse WorkspaceEdit)
 lifttotoplevelCmd' (TextDocumentPositionParams tdi pos) =
@@ -179,12 +180,9 @@ lifttotoplevelCmd' (TextDocumentPositionParams tdi pos) =
 
 -- ---------------------------------------------------------------------
 
-renameCmd :: CommandFunc WorkspaceEdit
-renameCmd = CmdSync $ \_ctxs req ->
-  case getParams (IdFile "file" :& IdPos "start_pos" :& IdText "name" :& RNil) req of
-    Left err -> return err
-    Right (ParamFile uri :& ParamPos pos :& ParamText name :& RNil) ->
-      renameCmd' (TextDocumentPositionParams (TextDocumentIdentifier uri) pos) name
+renameCmd :: CommandFunc HarePointWithText WorkspaceEdit
+renameCmd = CmdSync $ \(HPT uri pos name) ->
+  renameCmd' (TextDocumentPositionParams (TextDocumentIdentifier uri) pos) name
 
 renameCmd' :: TextDocumentPositionParams -> T.Text -> IdeM (IdeResponse WorkspaceEdit)
 renameCmd' (TextDocumentPositionParams tdi pos) name =
@@ -195,12 +193,9 @@ renameCmd' (TextDocumentPositionParams tdi pos) name =
 
 -- ---------------------------------------------------------------------
 
-deleteDefCmd :: CommandFunc WorkspaceEdit
-deleteDefCmd  = CmdSync $ \_ctxs req ->
-  case getParams (IdFile "file" :& IdPos "start_pos" :& RNil) req of
-    Left err -> return err
-    Right (ParamFile uri :& ParamPos pos :& RNil) ->
-      deleteDefCmd' (TextDocumentPositionParams (TextDocumentIdentifier uri) pos)
+deleteDefCmd :: CommandFunc HarePoint WorkspaceEdit
+deleteDefCmd  = CmdSync $ \(HP uri pos) ->
+  deleteDefCmd' (TextDocumentPositionParams (TextDocumentIdentifier uri) pos)
 
 deleteDefCmd' :: TextDocumentPositionParams -> IdeM (IdeResponse WorkspaceEdit)
 deleteDefCmd' (TextDocumentPositionParams tdi pos) =
@@ -211,12 +206,9 @@ deleteDefCmd' (TextDocumentPositionParams tdi pos) =
 
 -- ---------------------------------------------------------------------
 
-genApplicativeCommand :: CommandFunc WorkspaceEdit
-genApplicativeCommand  = CmdSync $ \_ctxs req ->
-  case getParams (IdFile "file" :& IdPos "start_pos" :& RNil) req of
-    Left err -> return err
-    Right (ParamFile uri :& ParamPos pos :& RNil) ->
-      genApplicativeCommand' (TextDocumentPositionParams (TextDocumentIdentifier uri) pos)
+genApplicativeCommand :: CommandFunc HarePoint WorkspaceEdit
+genApplicativeCommand  = CmdSync $ \(HP uri pos) ->
+  genApplicativeCommand' (TextDocumentPositionParams (TextDocumentIdentifier uri) pos)
 
 genApplicativeCommand' :: TextDocumentPositionParams -> IdeM (IdeResponse WorkspaceEdit)
 genApplicativeCommand' (TextDocumentPositionParams tdi pos) =

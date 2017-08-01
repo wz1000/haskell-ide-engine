@@ -18,20 +18,17 @@ import           Haskell.Ide.Engine.PluginDescriptor
 
 -- ---------------------------------------------------------------------
 
-exampleAsyncDescriptor :: TaggedPluginDescriptor _
+exampleAsyncDescriptor :: PluginDescriptor
 exampleAsyncDescriptor = PluginDescriptor
   {
-    pdUIShortName = "Async Example"
-  , pdUIOverview = "An example HIE plugin using multiple/async processes"
-  , pdCommands =
-         buildCommand (longRunningCmdSync Cmd1) (Proxy :: Proxy "cmd1")
-                      "Long running synchronous command" [] (SCtxNone :& RNil) RNil SaveNone
-      :& buildCommand (longRunningCmdSync Cmd2) (Proxy :: Proxy "cmd2")
-                      "Long running synchronous command" [] (SCtxNone :& RNil) RNil SaveNone
-      :& buildCommand (streamingCmdAsync (CmdA 3 100)) (Proxy :: Proxy "cmdA3") "Long running async/streaming command" [] (SCtxNone :& RNil) RNil SaveNone
-      :& RNil
-  , pdExposedServices = []
-  , pdUsedServices    = []
+    pluginName = "Async Example"
+  , pluginDesc = "An example HIE plugin using multiple/async processes"
+  , pluginCommands =
+      [ PluginCommand "cmd1" "Long running synchronous command" (longRunningCmdSync Cmd1)
+      , PluginCommand "cmd2" "Long running synchronous command" (longRunningCmdSync Cmd2)
+      , PluginCommand  "cmdA3" "Long running async/streaming command"
+          (streamingCmdAsync (CmdA 3 100))
+      ]
   }
 
 -- ---------------------------------------------------------------------
@@ -63,8 +60,8 @@ instance ExtensionClass AsyncPluginState where
 -- ---------------------------------------------------------------------
 
 -- | This command manages interaction with a separate process, doing stuff.
-longRunningCmdSync :: WorkerCmd -> CommandFunc T.Text
-longRunningCmdSync cmd = CmdSync $ \_ctx _req -> do
+longRunningCmdSync :: WorkerCmd -> CommandFunc () T.Text
+longRunningCmdSync cmd = CmdSync $ \() -> do
   SubProcess cin cout _tid <- ensureProcessRunning
   liftIO $ atomically $ writeTChan cin cmd
   res <- liftIO $ atomically $ readTChan cout
@@ -111,8 +108,8 @@ workerProc cin cout = loop 1
 -- ---------------------------------------------------------------------
 
 -- | This command manages interaction with a separate process, doing stuff.
-streamingCmdAsync :: WorkerCmdAsync -> CommandFunc T.Text
-streamingCmdAsync cmd = CmdAsync $ \replyFunc _ctx _req -> do
+streamingCmdAsync :: WorkerCmdAsync -> CommandFunc () T.Text
+streamingCmdAsync cmd = CmdAsync $ \replyFunc () -> do
   tid <- liftIO $ forkIO (workerProcAsync cmd replyFunc)
   debugm $ "streamingCmdAsync:launched worker as " ++ show tid
   let tidStr = T.pack (show tid ++ ":")

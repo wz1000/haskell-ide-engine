@@ -19,30 +19,20 @@ import           GhcMod.Monad
 -- ---------------------------------------------------------------------
 
 -- | Descriptor for the ghc-tree plugin
-ghcTreeDescriptor :: TaggedPluginDescriptor _
+ghcTreeDescriptor :: PluginDescriptor
 ghcTreeDescriptor = PluginDescriptor
   {
-    pdUIShortName = "GhcTree"
-  , pdUIOverview = "Provide GHC AST (parsed, renamed, typechecked)."
-  , pdCommands =
-
-        buildCommand trees (Proxy :: Proxy "trees") "Get ASTs for the given file"
-                   [".hs",".lhs"] (SCtxFile :& RNil) RNil SaveAll
-
-      :& RNil
-  , pdExposedServices = []
-  , pdUsedServices    = []
+    pluginName = "GhcTree"
+  , pluginDesc = "Provide GHC AST (parsed, renamed, typechecked)."
+  , pluginCommands =
+      [PluginCommand "trees" "Get ASTs for the given file" trees]
   }
 
 -- ---------------------------------------------------------------------
 
 -- | Get the AST for the given file
-trees :: CommandFunc AST
-trees = CmdSync $ \_ctxs req ->
-  case getParams (IdFile "file" :& RNil) req of
-    Left err -> return err
-    Right (ParamFile uri :& RNil) ->
-      treesCmd uri
+trees :: CommandFunc Uri AST
+trees = CmdSync treesCmd
 
 treesCmd :: Uri -> IdeM (IdeResponse AST)
 treesCmd uri =

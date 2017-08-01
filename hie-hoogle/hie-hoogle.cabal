@@ -26,11 +26,7 @@ library
                      , filepath
                      , aeson
                      , directory
-                     , vinyl
-                     , process
-                     , ghc
-                     , hoogle
-                     , containers
+                     , hoogle >= 5.0.13
                      , text
                      , transformers
   ghc-options:         -Wall
