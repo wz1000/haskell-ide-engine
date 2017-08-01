@@ -134,5 +134,7 @@ run opts = do
               (IdeState plugins Map.empty Map.empty Map.empty)
               (dispatcherP dispatcherEnv pin)
 
-    when (optLsp opts) $
+    if optLsp opts then
       lspStdioTransport dispatcherProcP pin origDir
+    else
+      putStrLn "HIE exiting - no transport selected (available transports: --lsp)"
