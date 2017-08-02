@@ -184,10 +184,12 @@ customOptions = defaultOptions { fieldLabelModifier = camelTo2 '_' . drop 2}
 data InfoParams =
   IP { ipFile :: Uri
      , ipExpr :: T.Text
-     } deriving Generic
+     } deriving (Eq,Show,Generic)
 
 instance FromJSON InfoParams where
   parseJSON = genericParseJSON customOptions
+instance ToJSON InfoParams where
+  toJSON = genericToJSON customOptions
 
 infoCmd :: CommandFunc InfoParams T.Text
 infoCmd = CmdSync $ \(IP uri expr) ->
@@ -204,13 +206,16 @@ data TypeParams =
   TP { tpIncludeConstraints :: Bool
      , tpFile :: Uri
      , tpPos :: Position
-     } deriving Generic
+     } deriving (Eq,Show,Generic)
 
 instance FromJSON TypeParams where
   parseJSON = genericParseJSON customOptions
+instance ToJSON TypeParams where
+  toJSON = genericToJSON customOptions
 
 typeCmd :: CommandFunc TypeParams [(Range,T.Text)]
-typeCmd = CmdSync $ \(TP bool uri pos) ->
+typeCmd = CmdSync $ \(TP bool uri pos) -> do
+  _ <- setTypecheckedModule uri
   newTypeCmd bool uri pos
 
 someErr :: String -> String -> IdeResponse a

@@ -90,28 +90,34 @@ customOptions n = J.defaultOptions { J.fieldLabelModifier = J.camelTo2 '_' . dro
 data HarePoint =
   HP { hpFile :: Uri
      , hpPos :: Position
-     } deriving Generic
+     } deriving (Eq,Generic,Show)
 
 instance FromJSON HarePoint where
   parseJSON = genericParseJSON $ customOptions 2
+instance ToJSON HarePoint where
+  toJSON = genericToJSON $ customOptions 2
 
 data HarePointWithText =
   HPT { hptFile :: Uri
       , hptPos :: Position
       , hptText :: T.Text
-      } deriving Generic
+      } deriving (Eq,Generic,Show)
 
 instance FromJSON HarePointWithText where
   parseJSON = genericParseJSON $ customOptions 3
+instance ToJSON HarePointWithText where
+  toJSON = genericToJSON $ customOptions 3
 
 data HareRange =
   HR { hrFile :: Uri
      , hrStartPos :: Position
      , hrEndPos :: Position
-     } deriving Generic
+     } deriving (Eq,Generic,Show)
 
 instance FromJSON HareRange where
   parseJSON = genericParseJSON $ customOptions 2
+instance ToJSON HareRange where
+  toJSON = genericToJSON $ customOptions 2
 
 -- ---------------------------------------------------------------------
 

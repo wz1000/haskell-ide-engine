@@ -95,11 +95,9 @@ test-suite haskell-ide-test
                        GhcTreePluginSpec
                        HaRePluginSpec
                        HooglePluginSpec
-                       JsonStdioSpec
                        JsonSpec
                        Spec
                        TestUtils
-                       UtilsSpec
   build-depends:       Diff
                      , QuickCheck
                      , aeson

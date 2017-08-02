@@ -49,7 +49,7 @@ applyRefactDescriptor = PluginDescriptor
 data ApplyOneParams = AOP
   { file :: Uri
   , start_pos :: Position
-  } deriving (Generic,FromJSON,ToJSON)
+  } deriving (Eq,Show,Generic,FromJSON,ToJSON)
 
 applyOneCmd :: CommandFunc ApplyOneParams WorkspaceEdit
 applyOneCmd = CmdSync $ \(AOP uri pos)-> do

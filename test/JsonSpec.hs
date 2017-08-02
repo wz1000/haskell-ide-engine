@@ -6,10 +6,12 @@
 module JsonSpec where
 
 import           Haskell.Ide.Engine.PluginDescriptor
-import           Haskell.Ide.Engine.SemanticTypes
+
+import           Haskell.Ide.ApplyRefactPlugin
+import           Haskell.Ide.HaRePlugin
+import           Haskell.Ide.GhcModPlugin
 
 import           Data.Aeson
-import           Data.Text
 import           Test.QuickCheck hiding (Success)
 import           Test.QuickCheck.Instances ()
 import           Test.Hspec
@@ -34,28 +36,15 @@ spec = describe "dispatcher" jsonSpec
 
 jsonSpec :: Spec
 jsonSpec = do
-  describe "Valid Response JSON Object round trip" $ do
-    prop "Text" (propertyValidRoundtrip :: Text -> Bool)
-    prop "[Text]" (propertyValidRoundtrip :: [Text] -> Bool)
-    prop "()" (propertyValidRoundtrip :: () -> Bool)
-    prop "Aeson.Object" (propertyValidRoundtrip :: Object -> Bool)
-    prop "CommandDescriptor" (propertyValidRoundtrip :: UntaggedCommandDescriptor -> Bool)
-    prop "ExtendedCommandDescriptor" (propertyValidRoundtrip :: ExtendedCommandDescriptor -> Bool)
-    prop "IdePlugins" (propertyValidRoundtrip :: IdePlugins -> Bool)
-    prop "TypeInfo" (propertyValidRoundtrip :: TypeInfo -> Bool)
-    prop "ModuleList" (propertyValidRoundtrip :: ModuleList -> Bool)
-
   describe "General JSON instances round trip" $ do
-    prop "Pos" (propertyJsonRoundtrip :: Position -> Bool)
-    prop "ParamVal 'PtPos" (propertyJsonRoundtrip :: ParamVal 'PtPos -> Bool)
-    prop "ParamValP" (propertyJsonRoundtrip :: ParamValP -> Bool)
-    prop "CabalSection" (propertyJsonRoundtrip :: CabalSection -> Bool)
-    prop "AcceptedContext" (propertyJsonRoundtrip :: AcceptedContext -> Bool)
-    prop "ParamType" (propertyJsonRoundtrip :: ParamType -> Bool)
-    prop "ParamDescription" (propertyJsonRoundtrip :: ParamDescription -> Bool)
-    prop "CommandDescriptor" (propertyJsonRoundtrip :: UntaggedCommandDescriptor -> Bool)
-    prop "Service" (propertyJsonRoundtrip :: Service -> Bool)
-    prop "IdeRequest" (propertyJsonRoundtrip :: IdeRequest -> Bool)
+  -- Plugin params
+    prop "ApplyOneParams" (propertyJsonRoundtrip :: ApplyOneParams -> Bool)
+    prop "InfoParams" (propertyJsonRoundtrip :: InfoParams -> Bool)
+    prop "TypeParams" (propertyJsonRoundtrip :: TypeParams -> Bool)
+    prop "HarePoint" (propertyJsonRoundtrip :: HarePoint -> Bool)
+    prop "HarePointWithText" (propertyJsonRoundtrip :: HarePointWithText -> Bool)
+    prop "HareRange" (propertyJsonRoundtrip :: HareRange -> Bool)
+  -- Plugin Api types
     prop "IdeErrorCode" (propertyJsonRoundtrip :: IdeErrorCode -> Bool)
     prop "IdeError" (propertyJsonRoundtrip :: IdeError -> Bool)
 
@@ -64,76 +53,36 @@ jsonSpec = do
 propertyJsonRoundtrip :: (Eq a, ToJSON a, FromJSON a) => a -> Bool
 propertyJsonRoundtrip a = Success a == fromJSON (toJSON a)
 
-propertyValidRoundtrip :: (Eq a, ValidResponse a) => a -> Bool
-propertyValidRoundtrip a = Success a == fromJSON (toJSON a)
-
 -- enough for our needs
 instance Arbitrary Value where
   arbitrary = do
     s <- arbitrary
     return $ String s
 
-instance Arbitrary UntaggedCommandDescriptor where
-  arbitrary = CommandDesc
-    <$> arbitrary
-    <*> arbitrary
-    <*> smallList arbitrary
-    <*> smallList arbitraryBoundedEnum
-    <*> smallList arbitrary
-    <*> arbitrary
-    <*> arbitrary
-
-instance Arbitrary ExtendedCommandDescriptor where
-  arbitrary = ExtendedCommandDescriptor
-    <$> arbitrary
-    <*> arbitrary
-
-instance Arbitrary ParamDescription where
-  arbitrary = do
-    i <- choose (1::Int,2)
-    case i of
-      1 -> RP <$> arbitrary <*> arbitrary <*> arbitraryBoundedEnum
-      _ -> OP <$> arbitrary <*> arbitrary <*> arbitraryBoundedEnum
-
-
-instance Arbitrary Service where
-  arbitrary = Service <$> arbitrary
-
-instance Arbitrary UntaggedPluginDescriptor where
-  arbitrary = PluginDescriptor <$>
-              arbitrary <*>
-              arbitrary <*>
-              smallList arbitrary <*>
-              smallList arbitrary <*>
-              smallList arbitrary
-
 -- | make lists of maximum length 3 for test performance
 smallList :: Gen a -> Gen [a]
 smallList = resize 3 . listOf
 
-instance Arbitrary UntaggedCommand where
-  arbitrary = Command <$> arbitrary <*> pure (CmdAsync (\_ _ _ -> return ())::CommandFunc Text)
+instance Arbitrary ApplyOneParams where
+  arbitrary = AOP <$> arbitrary <*> arbitrary
 
--- | Sufficient for tests
-instance Eq UntaggedPluginDescriptor where
-  a == b = show a == show b
+instance Arbitrary TypeParams where
+  arbitrary = TP <$> arbitrary <*> arbitrary <*> arbitrary
+
+instance Arbitrary InfoParams where
+  arbitrary = IP <$> arbitrary <*> arbitrary
+
+instance Arbitrary HarePoint where
+  arbitrary = HP <$> arbitrary <*> arbitrary
+
+instance Arbitrary HarePointWithText where
+  arbitrary = HPT <$> arbitrary <*> arbitrary <*> arbitrary
+
+instance Arbitrary HareRange where
+  arbitrary = HR <$> arbitrary <*> arbitrary <*> arbitrary
 
 instance Arbitrary Uri where
   arbitrary = filePathToUri <$> arbitrary
-
-instance Arbitrary ParamValP where
-  arbitrary = do
-    i <- choose (1::Int,9)
-    case i of
-      1 -> ParamTextP       <$> arbitrary
-      2 -> ParamIntP        <$> arbitrary
-      3 -> ParamBoolP       <$> arbitrary
-      4 -> ParamFileP       <$> arbitrary
-      5 -> ParamPosP        <$> arbitrary
-      6 -> ParamRangeP      <$> arbitrary
-      7 -> ParamLocP        <$> arbitrary
-      8 -> ParamTextDocIdP  <$> arbitrary
-      _ -> ParamTextDocPosP <$> arbitrary
 
 instance Arbitrary Range where
   arbitrary = Range <$> arbitrary <*> arbitrary
@@ -147,48 +96,14 @@ instance Arbitrary TextDocumentIdentifier where
 instance Arbitrary TextDocumentPositionParams where
   arbitrary = TextDocumentPositionParams <$> arbitrary <*> arbitrary
 
-instance Arbitrary CabalSection where
-  arbitrary = CabalSection <$> arbitrary
-
-instance Arbitrary AcceptedContext where
-  arbitrary = arbitraryBoundedEnum
-
-instance Arbitrary ParamType where
-  arbitrary = arbitraryBoundedEnum
-
 instance Arbitrary IdeErrorCode where
   arbitrary = arbitraryBoundedEnum
 
 instance Arbitrary IdeError where
   arbitrary = IdeError <$> arbitrary <*> arbitrary <*> arbitrary
 
--- | Sufficient for tests
-instance Eq IdeRequest where
-  a == b = show a == show b
-
-instance Arbitrary IdeRequest where
-  arbitrary = IdeRequest <$> arbitrary <*> arbitrary
-
-instance Arbitrary TypeInfo where
-  arbitrary = TypeInfo <$> smallList arbitrary
-
-instance Arbitrary TypeResult where
-  arbitrary = TypeResult <$> arbitrary <*> arbitrary <*> arbitrary
-
-instance Arbitrary IdePlugins where
-  arbitrary = IdePlugins <$> arbitrary
-
-instance Arbitrary ModuleList where
-  arbitrary = ModuleList <$> smallList arbitrary
-
 instance Arbitrary Position where
   arbitrary = do
     Positive l <- arbitrary
     Positive c <- arbitrary
     return $ Position l c
-
-instance Arbitrary (ParamVal 'PtPos) where
-  arbitrary = ParamPos <$> arbitrary
-
-instance Arbitrary Save where
-  arbitrary = oneof [return SaveNone, return SaveAll]

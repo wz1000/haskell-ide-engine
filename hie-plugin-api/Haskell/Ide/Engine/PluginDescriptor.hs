@@ -119,7 +119,7 @@ data PluginDescriptor =
   PluginDescriptor { pluginName :: T.Text
                    , pluginDesc :: T.Text
                    , pluginCommands :: [PluginCommand]
-                   }
+                   } deriving (Show,Generic)
 
 instance Show PluginCommand where
   show (PluginCommand name _ _) = "PluginCommand { name = " ++ T.unpack name ++ " }"
