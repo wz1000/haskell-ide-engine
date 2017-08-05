@@ -1,15 +1,14 @@
 {-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
 
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE PartialTypeSignatures #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE DuplicateRecordFields   #-}
+{-# LANGUAGE PatternSynonyms       #-}
+{-# LANGUAGE PolyKinds             #-}
+{-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
 {-
 
 Start up an actual instance of the HIE server, and interact with it.
@@ -27,15 +26,16 @@ import           Control.Concurrent.STM.TVar
 import           Control.Monad
 import           Control.Monad.STM
 import           Data.Aeson
-import qualified Data.HashMap.Strict as H
-import qualified Data.Set as S
-import qualified Data.Map as Map
-import qualified Data.Text as T
+import qualified Data.HashMap.Strict                   as H
+import qualified Data.Map                              as Map
+import qualified Data.Set                              as S
+import qualified Data.Text                             as T
 import           Haskell.Ide.Engine.Dispatcher
 import           Haskell.Ide.Engine.Monad
 import           Haskell.Ide.Engine.MonadFunctions
+import           Haskell.Ide.Engine.MonadTypes
 import           Haskell.Ide.Engine.PluginDescriptor
-import           Haskell.Ide.Engine.SemanticTypes
+import           Haskell.Ide.Engine.PluginUtils
 import           Haskell.Ide.Engine.Types
 import           Language.Haskell.LSP.TH.DataTypesJSON hiding (error, name)
 import           System.Directory

@@ -4,13 +4,14 @@ module GhcModPluginSpec where
 import           Control.Concurrent
 import           Control.Exception
 import           Data.Aeson
+import qualified Data.Map                            as Map
+import qualified Data.Set                            as S
 import           Haskell.Ide.Engine.Monad
+import           Haskell.Ide.Engine.MonadTypes
 import           Haskell.Ide.Engine.PluginDescriptor
-import           Haskell.Ide.Engine.SemanticTypes
+import           Haskell.Ide.Engine.PluginUtils
 import           Haskell.Ide.GhcModPlugin
 import           System.Directory
-import qualified Data.Map as Map
-import qualified Data.Set as S
 import           TestUtils
 
 import           Test.Hspec

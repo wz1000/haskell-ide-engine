@@ -1,19 +1,20 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 module HooglePluginSpec where
 
 import           Control.Concurrent
 import           Control.Monad
 import           Data.Aeson
-import qualified Data.Vector as V
+import qualified Data.Map                            as Map
+import qualified Data.Vector                         as V
 import           Haskell.Ide.Engine.Monad
+import           Haskell.Ide.Engine.MonadTypes
 import           Haskell.Ide.Engine.PluginDescriptor
 import           Haskell.Ide.HooglePlugin
-import           System.Directory
-import qualified Data.Map as Map
-import           TestUtils
 import           Hoogle
+import           System.Directory
 import           Test.Hspec
+import           TestUtils
 
 -- ---------------------------------------------------------------------
 
@@ -58,7 +59,7 @@ hoogleSpec = do
       let extractFirst (IdeResponseOk xs) =
               case xs of
                    Array a -> a V.!? 0
-                   _ -> Nothing
+                   _       -> Nothing
           extractFirst _ = Nothing
       r <- dispatchRequest "hoogle" "lookup" ("[a] -> a" :: String)
       extractFirst r `shouldBe` Just (String "Prelude head :: [a] -> a")

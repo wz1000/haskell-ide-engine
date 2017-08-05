@@ -1,29 +1,24 @@
-{-# LANGUAGE DataKinds             #-}
-{-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE DeriveAnyClass        #-}
+{-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE DuplicateRecordFields #-}
-{-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE OverloadedStrings     #-}
-{-# LANGUAGE PartialTypeSignatures #-}
 module Haskell.Ide.ApplyRefactPlugin where
 
 import           Control.Arrow
 import           Control.Monad.IO.Class
 import           Control.Monad.Trans.Either
-import           Data.Aeson                          hiding (Error)
-import           Data.Monoid                         ((<>))
-import qualified Data.Text                           as T
-import qualified Data.Text.IO                        as T
-import qualified GhcMod.Utils                        as GM
-import           Haskell.Ide.Engine.MonadFunctions
-import           Haskell.Ide.Engine.PluginDescriptor
-import           Haskell.Ide.Engine.PluginUtils
-import           Haskell.Ide.Engine.SemanticTypes
-import           Language.Haskell.HLint3             as Hlint
-import           Refact.Apply
+import           Data.Aeson                        hiding (Error)
+import           Data.Monoid                       ((<>))
+import qualified Data.Text                         as T
+import qualified Data.Text.IO                      as T
 import           GHC.Generics
--- import           System.Directory
+import qualified GhcMod.Utils                      as GM
+import           Haskell.Ide.Engine.MonadFunctions
+import           Haskell.Ide.Engine.MonadTypes
+import           Haskell.Ide.Engine.PluginUtils
 import           Language.Haskell.Exts.SrcLoc
+import           Language.Haskell.HLint3           as Hlint
+import           Refact.Apply
 import           System.IO.Extra
 
 -- ---------------------------------------------------------------------
@@ -47,7 +42,7 @@ applyRefactDescriptor = PluginDescriptor
 -- ---------------------------------------------------------------------
 
 data ApplyOneParams = AOP
-  { file :: Uri
+  { file      :: Uri
   , start_pos :: Position
   } deriving (Eq,Show,Generic,FromJSON,ToJSON)
 

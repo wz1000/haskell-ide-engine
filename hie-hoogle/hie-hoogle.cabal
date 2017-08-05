@@ -19,8 +19,6 @@ library
   exposed-modules:     Haskell.Ide.HooglePlugin
   build-depends:       base >= 4.9 && < 5
                      , hie-plugin-api
-                     , hie-base
-                     , haskell-lsp
                      , tagsoup
                      , ghc-mod
                      , filepath
@@ -28,7 +26,6 @@ library
                      , directory
                      , hoogle >= 5.0.13
                      , text
-                     , transformers
   ghc-options:         -Wall
   if flag(pedantic)
      ghc-options:      -Werror

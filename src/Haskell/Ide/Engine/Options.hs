@@ -1,7 +1,7 @@
 module Haskell.Ide.Engine.Options where
 
-import Data.Semigroup hiding (option)
-import Options.Applicative.Simple
+import           Data.Semigroup             hiding (option)
+import           Options.Applicative.Simple
 
 data GlobalOpts = GlobalOpts
   { optConsole     :: Bool

@@ -1,15 +1,10 @@
-{-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
-
-{-# LANGUAGE DataKinds             #-}
-{-# LANGUAGE GADTs                 #-}
-{-# LANGUAGE OverloadedStrings     #-}
-{-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Haskell.Ide.ExamplePlugin2 where
 
-import           Haskell.Ide.Engine.PluginDescriptor
 import           Control.Monad.IO.Class
 import           Data.Monoid
-import qualified Data.Text as T
+import qualified Data.Text                     as T
+import           Haskell.Ide.Engine.MonadTypes
 
 -- ---------------------------------------------------------------------
 

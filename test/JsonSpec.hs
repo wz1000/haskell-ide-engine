@@ -1,21 +1,21 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE DataKinds            #-}
+{-# LANGUAGE FlexibleInstances    #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 -- | Test for JSON serialization
 module JsonSpec where
 
-import           Haskell.Ide.Engine.PluginDescriptor
+import           Haskell.Ide.Engine.MonadTypes
 
 import           Haskell.Ide.ApplyRefactPlugin
-import           Haskell.Ide.HaRePlugin
 import           Haskell.Ide.GhcModPlugin
+import           Haskell.Ide.HaRePlugin
 
 import           Data.Aeson
-import           Test.QuickCheck hiding (Success)
-import           Test.QuickCheck.Instances ()
 import           Test.Hspec
 import           Test.Hspec.QuickCheck
+import           Test.QuickCheck               hiding (Success)
+import           Test.QuickCheck.Instances     ()
 
 -- import Debug.Trace
 -- ---------------------------------------------------------------------
@@ -25,12 +25,6 @@ main = hspec spec
 
 spec :: Spec
 spec = describe "dispatcher" jsonSpec
-
--- -- |Used when running from ghci, and it sets the current directory to ./tests
--- tt :: IO ()
--- tt = do
---   cd ".."
---   hspec spec
 
 -- ---------------------------------------------------------------------
 

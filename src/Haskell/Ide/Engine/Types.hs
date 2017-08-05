@@ -1,9 +1,8 @@
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE GADTs #-}
 module Haskell.Ide.Engine.Types where
 
-import           Haskell.Ide.Engine.PluginDescriptor
+import           Haskell.Ide.Engine.MonadTypes
 import qualified Language.Haskell.LSP.TH.DataTypesJSON as J
 
 -- ---------------------------------------------------------------------

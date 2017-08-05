@@ -13,6 +13,13 @@ module Haskell.Ide.Engine.PluginUtils
   , srcSpan2Loc
   , reverseMapFile
   , fileInfo
+  , unpackRealSrcSpan
+  , realSrcSpan2Range
+  , canonicalizeUri
+  , newRangeToOld
+  , oldRangeToNew
+  , unPos
+  , toPos
   ) where
 
 import           Control.Monad.IO.Class
@@ -24,8 +31,7 @@ import qualified Data.HashMap.Strict                   as H
 import           Data.Monoid
 import qualified Data.Text                             as T
 import           FastString
-import           Haskell.Ide.Engine.PluginDescriptor
-import           Haskell.Ide.Engine.SemanticTypes
+import           Haskell.Ide.Engine.MonadTypes
 import qualified Language.Haskell.LSP.TH.DataTypesJSON as J
 import           Prelude                               hiding (log)
 import           SrcLoc
@@ -34,19 +40,50 @@ import           System.FilePath
 
 -- ---------------------------------------------------------------------
 
+-- | Converts to one based tuple
+unPos :: Position -> (Int,Int)
+unPos (Position l c) = (l+1,c+1)
+
+-- | Converts from one based tuple
+toPos :: (Int,Int) -> Position
+toPos (l,c) = Position (l-1) (c-1)
+
+unpackRealSrcSpan :: RealSrcSpan -> (Position, Position)
+unpackRealSrcSpan rspan =
+  (toPos (l1,c1),toPos (l2,c2))
+  where s  = realSrcSpanStart rspan
+        l1 = srcLocLine s
+        c1 = srcLocCol s
+        e  = realSrcSpanEnd rspan
+        l2 = srcLocLine e
+        c2 = srcLocCol e
+
+canonicalizeUri :: MonadIO m => Uri -> m Uri
+canonicalizeUri uri =
+  case uriToFilePath uri of
+    Nothing -> return uri
+    Just fp -> do
+      fp' <- liftIO $ canonicalizePath fp
+      return $ filePathToUri fp'
+
+newRangeToOld :: CachedModule -> Range -> Maybe Range
+newRangeToOld cm (Range start end) = do
+  start' <- newPosToOld cm start
+  end'   <- newPosToOld cm end
+  return (Range start' end')
+
+oldRangeToNew :: CachedModule -> Range -> Maybe Range
+oldRangeToNew cm (Range start end) = do
+  start' <- oldPosToNew cm start
+  end'   <- oldPosToNew cm end
+  return (Range start' end')
+
 getRealSrcSpan :: SrcSpan -> Either T.Text RealSrcSpan
-getRealSrcSpan (RealSrcSpan r) = pure r
+getRealSrcSpan (RealSrcSpan r)   = pure r
 getRealSrcSpan (UnhelpfulSpan x) = Left $ T.pack $ unpackFS x
 
 realSrcSpan2Range :: RealSrcSpan -> Range
-realSrcSpan2Range rspan =
-  Range (toPos (l1,c1)) (toPos (l2,c2))
-  where s = realSrcSpanStart rspan
-        l1 = srcLocLine s
-        c1 = srcLocCol s
-        e = realSrcSpanEnd rspan
-        l2 = srcLocLine e
-        c2 = srcLocCol e
+realSrcSpan2Range = uncurry Range . unpackRealSrcSpan
 
 srcSpan2Range :: SrcSpan -> Either T.Text Range
 srcSpan2Range spn =
@@ -64,6 +101,10 @@ srcSpan2Loc revMapp spn = runEitherT $ do
   return $ Location (filePathToUri file) (realSrcSpan2Range rspan)
 
 -- ---------------------------------------------------------------------
+
+-- | Helper function that extracts a filepath from a Uri if the Uri
+-- is well formed (i.e. begins with a file:// )
+-- fails with an IdeResponseFail otherwise
 pluginGetFile
   :: Monad m
   => T.Text -> Uri -> (FilePath -> m (IdeResponse a)) -> m (IdeResponse a)
@@ -72,8 +113,6 @@ pluginGetFile name uri f =
     Just file -> f file
     Nothing -> return $ IdeResponseFail (IdeError PluginError
                  (name <> "Couldn't resolve uri" <> getUri uri) Null)
-
-----------------------------------------
 
 -- ---------------------------------------------------------------------
 -- courtesy of http://stackoverflow.com/questions/19891061/mapeithers-function-in-haskell

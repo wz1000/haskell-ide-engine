@@ -1,13 +1,6 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE GADTs #-}
+{-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE PatternSynonyms   #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Haskell.Ide.Engine.PluginTypes
   (
@@ -19,31 +12,40 @@ module Haskell.Ide.Engine.PluginTypes
   , pattern IdeResponseFail
   , IdeError(..)
   , IdeErrorCode(..)
+  -- * LSP types
   , Uri(..)
   , uriToFilePath
   , filePathToUri
   , Position(..)
-  , toPos, unPos
   , Range(..)
   , Location(..)
   , TextDocumentIdentifier(..)
   , TextDocumentPositionParams(..)
+  , WorkspaceEdit(..)
+  , Diagnostic(..)
+  , DiagnosticSeverity(..)
+  , PublishDiagnosticsParams(..)
+  , List(..)
   ) where
 
 import           Control.Applicative
 import           Data.Aeson
-import qualified Data.Text as T
+import qualified Data.Text                             as T
 import           GHC.Generics
-import           Language.Haskell.LSP.TH.DataTypesJSON ( Uri(..), uriToFilePath, filePathToUri, Position(..), Range(..), Location(..), TextDocumentIdentifier(..), TextDocumentPositionParams(..))
+import           Language.Haskell.LSP.TH.DataTypesJSON (Diagnostic (..),
+                                                        DiagnosticSeverity (..),
+                                                        List (..),
+                                                        Location (..),
+                                                        Position (..),
+                                                        PublishDiagnosticsParams (..),
+                                                        Range (..),
+                                                        TextDocumentIdentifier (..),
+                                                        TextDocumentPositionParams (..),
+                                                        Uri (..),
+                                                        WorkspaceEdit (..),
+                                                        filePathToUri,
+                                                        uriToFilePath)
 
-
--- Converts to one based tuple
-unPos :: Position -> (Int,Int)
-unPos (Position l c) = (l+1,c+1)
-
--- Converts from one based tuple
-toPos :: (Int,Int) -> Position
-toPos (l,c) = Position (l-1) (c-1)
 
 -- ---------------------------------------------------------------------
 
@@ -53,14 +55,14 @@ data IdeFailure = IdeRFail IdeError
 
 instance ToJSON IdeFailure where
  toJSON (IdeRFail v) = object [ "fail" .= v ]
- toJSON (IdeRErr v) = object [ "error" .= v ]
+ toJSON (IdeRErr v)  = object [ "error" .= v ]
 
 instance FromJSON IdeFailure where
   parseJSON = withObject "IdeFailure" $ \v -> do
    mf <- fmap IdeRFail <$> v .:? "fail"
    me <- fmap IdeRErr <$> v .:? "error"
    case mf <|> me of
-     Just r -> return r
+     Just r  -> return r
      Nothing -> empty
 
 -- | The IDE response, with the type of response it contains

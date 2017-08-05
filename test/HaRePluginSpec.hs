@@ -1,17 +1,18 @@
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE DuplicateRecordFields   #-}
+{-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE OverloadedStrings     #-}
 module HaRePluginSpec where
 
 import           Control.Concurrent
 import           Data.Aeson
-import qualified Data.Map                            as Map
+import qualified Data.HashMap.Strict                   as H
+import qualified Data.Map                              as Map
 import           Haskell.Ide.Engine.Monad
+import           Haskell.Ide.Engine.MonadTypes
 import           Haskell.Ide.Engine.PluginDescriptor
-import           Haskell.Ide.Engine.SemanticTypes
-import           Haskell.Ide.HaRePlugin
+import           Haskell.Ide.Engine.PluginUtils
 import           Haskell.Ide.GhcModPlugin
+import           Haskell.Ide.HaRePlugin
 import           Language.Haskell.LSP.TH.DataTypesJSON
-import qualified Data.HashMap.Strict as H
 import           System.Directory
 import           System.FilePath
 import           TestUtils

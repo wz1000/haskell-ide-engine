@@ -1,58 +1,54 @@
-{-# LANGUAGE DataKinds             #-}
-{-# LANGUAGE DeriveGeneric         #-}
-{-# LANGUAGE GADTs                 #-}
-{-# LANGUAGE OverloadedStrings     #-}
-{-# LANGUAGE PartialTypeSignatures #-}
-{-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE DeriveGeneric       #-}
+{-# LANGUAGE NamedFieldPuns      #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE NamedFieldPuns        #-}
-
-
 module Haskell.Ide.HaRePlugin where
 
+import           ConLike
 import           Control.Lens                                 ((^.))
 import           Control.Monad.State
 import           Control.Monad.Trans.Control
 import           Control.Monad.Trans.Either
 import           Data.Aeson
-import qualified Data.Aeson.Types as J
+import qualified Data.Aeson.Types                             as J
 import           Data.Either
 import           Data.Foldable
 import qualified Data.Map                                     as Map
-import qualified Data.Set                                     as Set
-import           Data.Monoid
 import           Data.Maybe
+import           Data.Monoid
+import qualified Data.Set                                     as Set
 import qualified Data.Text                                    as T
 import qualified Data.Text.IO                                 as T
 import           Data.Typeable
+import           DataCon
 import           Exception
+import           FastString
 import           GHC
-import           GHC.Generics (Generic)
+import           GHC.Generics                                 (Generic)
 import qualified GhcMod.Error                                 as GM
 import qualified GhcMod.Monad                                 as GM
 import qualified GhcMod.Utils                                 as GM
-import           Haskell.Ide.Engine.PluginDescriptor
+import           Haskell.Ide.Engine.IdeFunctions
+import           Haskell.Ide.Engine.LocMap
 import           Haskell.Ide.Engine.MonadFunctions
+import           Haskell.Ide.Engine.MonadTypes
 import           Haskell.Ide.Engine.PluginUtils
-import           Haskell.Ide.Engine.SemanticTypes
+import           Haskell.Ide.GhcModPlugin                     (setTypecheckedModule)
+import           HscTypes
 import           Language.Haskell.GHC.ExactPrint.Print
 import qualified Language.Haskell.LSP.TH.DataTypesJSON        as J
 import           Language.Haskell.Refact.API
 import           Language.Haskell.Refact.HaRe
 import           Language.Haskell.Refact.Utils.Monad
 import           Language.Haskell.Refact.Utils.MonadFunctions
-import           Name
-import           SrcLoc
-import           Outputable ( Outputable )
-import           Packages
 import           Module
+import           Name
+import           Outputable                                   (Outputable)
+import           Packages
+import           SrcLoc
 import           TcEnv
-import           HscTypes
 import           Var
-import           ConLike
-import           DataCon
-import           FastString
-import           Haskell.Ide.GhcModPlugin (setTypecheckedModule)
 -- ---------------------------------------------------------------------
 
 hareDescriptor :: PluginDescriptor
@@ -89,7 +85,7 @@ customOptions n = J.defaultOptions { J.fieldLabelModifier = J.camelTo2 '_' . dro
 
 data HarePoint =
   HP { hpFile :: Uri
-     , hpPos :: Position
+     , hpPos  :: Position
      } deriving (Eq,Generic,Show)
 
 instance FromJSON HarePoint where
@@ -99,7 +95,7 @@ instance ToJSON HarePoint where
 
 data HarePointWithText =
   HPT { hptFile :: Uri
-      , hptPos :: Position
+      , hptPos  :: Position
       , hptText :: T.Text
       } deriving (Eq,Generic,Show)
 
@@ -109,9 +105,9 @@ instance ToJSON HarePointWithText where
   toJSON = genericToJSON $ customOptions 3
 
 data HareRange =
-  HR { hrFile :: Uri
+  HR { hrFile     :: Uri
      , hrStartPos :: Position
-     , hrEndPos :: Position
+     , hrEndPos   :: Position
      } deriving (Eq,Generic,Show)
 
 instance FromJSON HareRange where
@@ -366,10 +362,10 @@ getSymbols uri = do
 -- ---------------------------------------------------------------------
 
 data CompItem = CI
-  { origName :: Name
+  { origName     :: Name
   , importedFrom :: T.Text
-  , thingType :: Maybe T.Text
-  , label :: T.Text
+  , thingType    :: Maybe T.Text
+  , label        :: T.Text
   }
 
 instance Eq CompItem where
@@ -405,9 +401,9 @@ mkModCompl label =
   where hoogleQuery = Just $ toJSON $ "module:" <> label
 
 safeTyThingId :: TyThing -> Maybe Id
-safeTyThingId (AnId i) = Just i
+safeTyThingId (AnId i)                    = Just i
 safeTyThingId (AConLike (RealDataCon dc)) = Just $ dataConWrapId dc
-safeTyThingId _ = Nothing
+safeTyThingId _                           = Nothing
 
 getCompletions :: Uri -> (T.Text, T.Text) -> IdeM (IdeResponse [J.CompletionItem])
 getCompletions file (qualifier,ident) =
@@ -517,15 +513,15 @@ getSymbolsAtPoint file pos = do
   withCachedModule file noCache $
     \cm ->
       return $ IdeResponseOk
-             $ maybe []  (`getIdsAtPos` (locMap cm)) $ newPosToOld cm pos
+             $ maybe []  (`getNamesAtPos` (locMap cm)) $ newPosToOld cm pos
 symbolFromTypecheckedModule
   :: LocMap
   -> Position
   -> Maybe (Range, Name)
 symbolFromTypecheckedModule lm pos =
-  case getIdsAtPos pos lm of
+  case getNamesAtPos pos lm of
     (x:_) -> pure x
-    [] -> Nothing
+    []    -> Nothing
 
 -- ---------------------------------------------------------------------
 
@@ -541,7 +537,7 @@ getReferencesInDoc uri pos = do
       case mpos of
         Nothing -> return []
         Just pos' -> fmap concat $
-          forM (getIdsAtPos pos' lm) $ \(_,name) -> do
+          forM (getNamesAtPos pos' lm) $ \(_,name) -> do
               let usages = fromMaybe [] $ Map.lookup name inverseNameMap
                   defn = nameSrcSpan name
                   defnInSameFile =
@@ -598,7 +594,7 @@ findDef file pos = do
           case res of
             Right l@(J.Location uri range) ->
               case oldRangeToNew cm range of
-                Just r -> return $ IdeResponseOk (J.Location uri r)
+                Just r  -> return $ IdeResponseOk (J.Location uri r)
                 Nothing -> return $ IdeResponseOk l
             Left x -> do
               let failure = pure (IdeResponseFail

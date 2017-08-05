@@ -45,7 +45,6 @@ library
                      , hie-hoogle
                      , hslogger
                      , lens >= 4.15.2
-                     , lifted-base
                      , mtl
                      , optparse-simple >= 0.0.3
                      , stm
@@ -112,7 +111,6 @@ test-suite haskell-ide-test
                      , hie-apply-refact
                      , hie-base
                      , hie-eg-plugin-async
-                     , hie-example-plugin2
                      , hie-ghc-mod
                      , hie-ghc-tree
                      , hie-hare
@@ -120,14 +118,12 @@ test-suite haskell-ide-test
                      , hie-plugin-api
                      , hoogle > 5.0.11
                      , hspec
-                     -- , hspec-jenkins
                      , monad-logger
                      , quickcheck-instances
                      , stm
                      , text
                      , transformers
                      , unordered-containers
-                     , vinyl
                      , vector
   ghc-options:         -threaded -rtsopts -with-rtsopts=-N -Wall
   if flag(pedantic)
@@ -157,17 +153,13 @@ test-suite haskell-ide-func-test
                      , hie-ghc-mod
                      , hie-ghc-tree
                      , hie-hare
-                     , hie-hoogle
                      , hie-plugin-api
                      , hspec
-                     -- , hspec-jenkins
                      , monad-logger
-                     , quickcheck-instances
                      , stm
                      , text
                      , transformers
                      , unordered-containers
-                     , vinyl
   ghc-options:         -threaded -rtsopts -with-rtsopts=-N -Wall
   if flag(pedantic)
      ghc-options:      -Werror

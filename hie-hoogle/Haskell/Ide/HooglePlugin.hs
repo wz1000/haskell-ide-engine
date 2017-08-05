@@ -1,30 +1,22 @@
-{-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
-
-{-# LANGUAGE DataKinds             #-}
-{-# LANGUAGE FlexibleContexts      #-}
-{-# LANGUAGE GADTs                 #-}
-{-# LANGUAGE OverloadedStrings     #-}
-{-# LANGUAGE PartialTypeSignatures #-}
-{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Haskell.Ide.HooglePlugin where
 
-import           Data.Aeson
-import           Data.Monoid
-import           Data.Maybe
-import           Data.Bifunctor
---import           Data.List (intercalate)
-import qualified Data.Text as T
-import           Haskell.Ide.Engine.PluginDescriptor
-import           Haskell.Ide.Engine.ExtensibleState
 import           Control.Monad.IO.Class
+import           Data.Aeson
+import           Data.Bifunctor
+import           Data.Maybe
+import           Data.Monoid
+import qualified Data.Text                          as T
+import qualified GhcMod                             as GM
+import qualified GhcMod.Monad.Env                   as GM
+import qualified GhcMod.Types                       as GM
+import           Haskell.Ide.Engine.ExtensibleState
+import           Haskell.Ide.Engine.MonadTypes
 import           Hoogle
 import           System.Directory
-import qualified GhcMod as GM
-import qualified GhcMod.Monad.Env as GM
-import qualified GhcMod.Types as GM
 import           System.FilePath
-import Text.HTML.TagSoup
-import Text.HTML.TagSoup.Tree
+import           Text.HTML.TagSoup
+import           Text.HTML.TagSoup.Tree
 
 -- ---------------------------------------------------------------------
 
@@ -32,9 +24,10 @@ hoogleDescriptor :: PluginDescriptor
 hoogleDescriptor = PluginDescriptor
   {
     pluginName = "hoogle"
-  , pluginDesc = ("Hoogle is a Haskell API search engine, which allows you to search "
-           <> "many standard Haskell libraries by either function name, or by approximate "
-           <> "type signature. ")
+  , pluginDesc =
+         "Hoogle is a Haskell API search engine, which allows you to search "
+      <> "many standard Haskell libraries by either function name, or by approximate "
+      <> "type signature. "
   , pluginCommands =
       [ PluginCommand "info" "Look up the documentation for an identifier in the hoogle database" infoCmd
       , PluginCommand "lookup" "Search the hoogle database with a string" lookupCmd

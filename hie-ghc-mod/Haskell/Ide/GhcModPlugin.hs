@@ -1,46 +1,42 @@
-{-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
-
-{-# LANGUAGE DataKinds             #-}
-{-# LANGUAGE DeriveGeneric         #-}
-{-# LANGUAGE FlexibleContexts      #-}
-{-# LANGUAGE GADTs                 #-}
-{-# LANGUAGE OverloadedStrings     #-}
-{-# LANGUAGE PartialTypeSignatures #-}
-{-# LANGUAGE ScopedTypeVariables   #-}
-{-# LANGUAGE TupleSections         #-}
+{-# LANGUAGE DeriveGeneric       #-}
+{-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Haskell.Ide.GhcModPlugin where
 
+import           Bag
+import           Control.Monad.IO.Class
 import           Data.Aeson
 import           Data.Aeson.Types
 import           Data.Function
-import           Data.List
-import           Data.Monoid
-import           Control.Monad.IO.Class
 import           Data.IORef
-import qualified Data.Text                           as T
-import qualified Data.Map                            as Map
-import qualified Data.Set                            as Set
-import           GHC.Generics
-import qualified Exception                           as G
+import           Data.List
+import qualified Data.Map                          as Map
+import           Data.Monoid
+import qualified Data.Set                          as Set
+import qualified Data.Text                         as T
+import           DynFlags
+import           ErrUtils
+import qualified Exception                         as G
 import           GHC
-import qualified GhcMod                              as GM
-import qualified GhcMod.Doc                          as GM
-import qualified GhcMod.Gap                          as GM
-import qualified GhcMod.Monad                        as GM
-import qualified GhcMod.SrcUtils                     as GM
-import qualified GhcMod.Utils                        as GM
-import qualified GhcMod.Error                        as GM
-import qualified GhcMod.Types                        as GM
-import qualified GhcMod.DynFlags                     as GM
-import           Haskell.Ide.Engine.PluginDescriptor
-import           Haskell.Ide.Engine.PluginUtils
+import           GHC.Generics
+import qualified GhcMod                            as GM
+import qualified GhcMod.Doc                        as GM
+import qualified GhcMod.DynFlags                   as GM
+import qualified GhcMod.Error                      as GM
+import qualified GhcMod.Gap                        as GM
+import qualified GhcMod.Monad                      as GM
+import qualified GhcMod.SrcUtils                   as GM
+import qualified GhcMod.Types                      as GM
+import qualified GhcMod.Utils                      as GM
+import           Haskell.Ide.Engine.IdeFunctions
+import           Haskell.Ide.Engine.LocMap
+import           Haskell.Ide.Engine.ModuleLoader
 import           Haskell.Ide.Engine.MonadFunctions
-import           Haskell.Ide.Engine.SemanticTypes
-import Outputable (renderWithStyle)
-import DynFlags
-import HscTypes
-import ErrUtils
-import Bag
+import           Haskell.Ide.Engine.MonadTypes
+import           Haskell.Ide.Engine.PluginUtils
+import           HscTypes
+import           Outputable                        (renderWithStyle)
 
 -- ---------------------------------------------------------------------
 
@@ -72,10 +68,10 @@ checkCmd = CmdSync $ \uri ->
 
 lspSev :: Severity -> DiagnosticSeverity
 lspSev SevWarning = DsWarning
-lspSev SevError = DsError
-lspSev SevFatal = DsError
-lspSev SevInfo = DsInfo
-lspSev _ = DsInfo
+lspSev SevError   = DsError
+lspSev SevFatal   = DsError
+lspSev SevInfo    = DsInfo
+lspSev _          = DsInfo
 
 logDiag :: (FilePath -> FilePath) -> IORef AdditionalErrs -> IORef Diagnostics -> LogAction
 logDiag rfm eref dref df _reason sev spn style msg = do
@@ -204,8 +200,8 @@ infoCmd' uri expr =
 
 data TypeParams =
   TP { tpIncludeConstraints :: Bool
-     , tpFile :: Uri
-     , tpPos :: Position
+     , tpFile               :: Uri
+     , tpPos                :: Position
      } deriving (Eq,Show,Generic)
 
 instance FromJSON TypeParams where

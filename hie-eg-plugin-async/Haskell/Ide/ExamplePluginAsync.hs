@@ -1,8 +1,4 @@
-{-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
-
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE GADTs #-}
+{-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 module Haskell.Ide.ExamplePluginAsync where
 
@@ -11,10 +7,10 @@ import           Control.Concurrent.STM.TChan
 import           Control.Monad.IO.Class
 import           Control.Monad.STM
 import           Data.Monoid
-import qualified Data.Text as T
+import qualified Data.Text                          as T
 import           Haskell.Ide.Engine.ExtensibleState
 import           Haskell.Ide.Engine.MonadFunctions
-import           Haskell.Ide.Engine.PluginDescriptor
+import           Haskell.Ide.Engine.MonadTypes
 
 -- ---------------------------------------------------------------------
 
@@ -49,7 +45,7 @@ data SubProcess = SubProcess
   }
 
 -- | Wrap it in a Maybe for pure initialisation
-data AsyncPluginState = APS (Maybe SubProcess)
+newtype AsyncPluginState = APS (Maybe SubProcess)
 
 -- | Tag the state variable to enable it to be stored in the dispatcher state,
 -- accessible to all plugins, provided they know the type, as it is accessed via
@@ -75,7 +71,7 @@ longRunningCmdSync cmd = CmdSync $ \() -> do
 ensureProcessRunning :: IdeM SubProcess
 ensureProcessRunning = do
   (APS v) <- get -- from extensible state
-  sp <- case v of
+  case v of
     Nothing -> do
       cin  <- liftIO $ atomically newTChan
       cout <- liftIO $ atomically newTChan
@@ -84,7 +80,6 @@ ensureProcessRunning = do
       put (APS (Just v')) -- into extensible state
       return v'
     Just v' -> return v'
-  return sp
 
 -- ---------------------------------------------------------------------
 

@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
-
 {-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE OverloadedStrings     #-}
@@ -11,16 +9,17 @@ import           Control.Monad
 import           Data.Aeson
 import           Data.Foldable
 import           Data.List
-import qualified Data.Map as Map
+import qualified Data.Map                        as Map
 import           Data.Monoid
-import qualified Data.Text as T
-import           Development.GitRev (gitCommitCount)
-import           Distribution.System (buildArch)
-import           Distribution.Text (display)
-import           Haskell.Ide.Engine.PluginDescriptor
-import           Options.Applicative.Simple (simpleVersion)
-import qualified Paths_haskell_ide_engine as Meta
-import           Prelude hiding (log)
+import qualified Data.Text                       as T
+import           Development.GitRev              (gitCommitCount)
+import           Distribution.System             (buildArch)
+import           Distribution.Text               (display)
+import           Haskell.Ide.Engine.IdeFunctions
+import           Haskell.Ide.Engine.MonadTypes
+import           Options.Applicative.Simple      (simpleVersion)
+import qualified Paths_haskell_ide_engine        as Meta
+import           Prelude                         hiding (log)
 
 -- ---------------------------------------------------------------------
 

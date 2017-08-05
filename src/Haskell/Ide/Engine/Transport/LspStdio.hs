@@ -41,8 +41,9 @@ import qualified Data.Vector as V
 import qualified GhcMod as GM
 import           Haskell.Ide.Engine.PluginDescriptor
 import           Haskell.Ide.Engine.MonadFunctions
+import           Haskell.Ide.Engine.MonadTypes
+import           Haskell.Ide.Engine.IdeFunctions
 import           Haskell.Ide.Engine.Dispatcher
-import           Haskell.Ide.Engine.SemanticTypes
 import           Haskell.Ide.Engine.Types
 import qualified Haskell.Ide.HaRePlugin as HaRe
 import qualified Haskell.Ide.GhcModPlugin as GhcMod
@@ -94,6 +95,9 @@ run dispatcherProc cin origDir = flip E.catches handlers $ do
             , docVersionTVar = versionTVar
             }
       _rpid <- forkIO $ flip runReaderT lf $ reactor dispatcherEnv cin rin
+      -- haskell lsp sets the current directory to the project root in the InitializeRequest
+      -- We launch the dispatcher after that so that the defualt cradle is
+      -- recognized properly by ghc-mod
       dispatcherProc dispatcherEnv
       return Nothing
 
@@ -102,8 +106,6 @@ run dispatcherProc cin origDir = flip E.catches handlers $ do
     let logDir = tmpDir </> "hie-logs"
     createDirectoryIfMissing True logDir
     let dirStr = map (\c -> if c == pathSeparator then '-' else c) origDir
-    -- (logFileName,handle) <- openTempFile logDir "hie-lsp.log"
-    -- hClose handle -- Logger will open the file again
     let logFileName = logDir </> (dirStr ++ "-hie.log")
     Core.setupLogger logFileName ["HaRe"] L.DEBUG
     CTRL.run dp (hieHandlers rin) hieOptions

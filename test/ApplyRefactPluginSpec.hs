@@ -1,18 +1,19 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE DuplicateRecordFields   #-}
+{-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE OverloadedStrings     #-}
 module ApplyRefactPluginSpec where
 
 import           Control.Concurrent
 import           Data.Aeson
-import qualified Data.Map as Map
-import           Haskell.Ide.Engine.Monad
-import           Haskell.Ide.Engine.PluginDescriptor
-import           Haskell.Ide.Engine.SemanticTypes
+import qualified Data.HashMap.Strict                   as H
+import qualified Data.Map                              as Map
 import           Haskell.Ide.ApplyRefactPlugin
+import           Haskell.Ide.Engine.Monad
+import           Haskell.Ide.Engine.MonadTypes
+import           Haskell.Ide.Engine.PluginDescriptor
+import           Haskell.Ide.Engine.PluginUtils
 import           Language.Haskell.LSP.TH.DataTypesJSON
-import qualified Data.HashMap.Strict as H
-import           TestUtils
 import           System.Directory
+import           TestUtils
 
 import           Test.Hspec
 
@@ -149,7 +150,7 @@ applyRefactSpec = do
         (IdeResponseOk
            (PublishDiagnosticsParams
             { _uri = filePathToUri "./test/testdata/ApplyRefact.hs"
-            , _diagnostics = List $ 
+            , _diagnostics = List $
               [ Diagnostic (Range (Position 1 7) (Position 1 25))
                            (Just DsHint)
                            Nothing

@@ -2,13 +2,14 @@
 module ExamplePluginAsyncSpec where
 
 import           Control.Concurrent
+import           Control.Monad.IO.Class
 import           Data.Aeson
-import qualified Data.Map as Map
+import qualified Data.Map                            as Map
 import           Haskell.Ide.Engine.Monad
+import           Haskell.Ide.Engine.MonadTypes
 import           Haskell.Ide.Engine.PluginDescriptor
 import           Haskell.Ide.ExamplePluginAsync
 import           TestUtils
-import Control.Monad.IO.Class
 
 import           Test.Hspec
 

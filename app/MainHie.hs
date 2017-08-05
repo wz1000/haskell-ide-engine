@@ -1,15 +1,5 @@
-{-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
-
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE PartialTypeSignatures #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE PatternSynonyms #-}
-
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE TemplateHaskell     #-}
 module Main where
 
 import           Control.Concurrent
@@ -17,22 +7,23 @@ import           Control.Concurrent.STM.TChan
 import           Control.Monad
 import           Control.Monad.Logger
 import           Control.Monad.STM
-import qualified Data.Map as Map
+import qualified Data.Map                              as Map
 import           Data.Semigroup
-import           Data.Version (showVersion)
-import           Development.GitRev (gitCommitCount)
-import           Distribution.System (buildArch)
-import           Distribution.Text (display)
+import           Data.Version                          (showVersion)
+import           Development.GitRev                    (gitCommitCount)
+import           Distribution.System                   (buildArch)
+import           Distribution.Text                     (display)
+import qualified GhcMod.Types                          as GM
 import           Haskell.Ide.Engine.Dispatcher
 import           Haskell.Ide.Engine.Monad
 import           Haskell.Ide.Engine.MonadFunctions
+import           Haskell.Ide.Engine.MonadTypes
 import           Haskell.Ide.Engine.Options
 import           Haskell.Ide.Engine.PluginDescriptor
 import           Haskell.Ide.Engine.Transport.LspStdio
 import           Haskell.Ide.Engine.Types
-import qualified GhcMod.Types as GM
 import           Options.Applicative.Simple
-import qualified Paths_haskell_ide_engine as Meta
+import qualified Paths_haskell_ide_engine              as Meta
 import           System.Directory
 
 -- ---------------------------------------------------------------------
@@ -98,7 +89,7 @@ main = do
 run :: GlobalOpts -> IO ()
 run opts = do
   let withLogFun = case optLogFile opts of
-        Just f -> withFileLogging f
+        Just f  -> withFileLogging f
         Nothing -> withStdoutLogging
 
   withLogFun $ do
@@ -120,8 +111,6 @@ run opts = do
     logm $ "Current directory:" ++ d
 
     pin <- atomically newTChan :: IO (TChan PluginRequest)
-
-    -- log $ T.pack $ "replPluginInfo:" ++ show replPluginInfo
 
     let vomitOptions = GM.defaultOptions { GM.optOutput = oo { GM.ooptLogLevel = GM.GmVomit}}
         oo = GM.optOutput GM.defaultOptions

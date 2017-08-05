@@ -24,7 +24,6 @@ library
                      , hie-base
                      , hie-plugin-api
                      , text
-                     , unordered-containers
   ghc-options:         -Wall
   if flag(pedantic)
      ghc-options:      -Werror

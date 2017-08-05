@@ -1,9 +1,6 @@
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE GADTs #-}
+{-# LANGUAGE OverloadedStrings         #-}
+{-# LANGUAGE RecordWildCards           #-}
 module Haskell.Ide.Engine.Dispatcher where
 
 import           Control.Concurrent.STM.TChan
@@ -11,16 +8,13 @@ import           Control.Concurrent.STM.TVar
 import           Control.Monad
 import           Control.Monad.IO.Class
 import           Control.Monad.STM
-import qualified Data.Map as Map
-import qualified Data.Set as S
+import qualified Data.Map                              as Map
+import qualified Data.Set                              as S
+import           Haskell.Ide.Engine.IdeFunctions
 import           Haskell.Ide.Engine.MonadFunctions
-import           Haskell.Ide.Engine.PluginDescriptor
+import           Haskell.Ide.Engine.MonadTypes
 import           Haskell.Ide.Engine.Types
 import qualified Language.Haskell.LSP.TH.DataTypesJSON as J
-import qualified GhcMod.Monad.Env as GM
-import qualified GhcMod.Monad.Types as GM
-import qualified GhcMod.Types as GM
-import System.Directory
 
 
 data DispatcherEnv = DispatcherEnv
@@ -28,20 +22,6 @@ data DispatcherEnv = DispatcherEnv
   , wipReqsTVar    :: TVar (S.Set J.LspId)
   , docVersionTVar :: TVar (Map.Map Uri Int)
   }
-
-withCradle :: GM.Cradle -> IdeM a -> IdeM a
-withCradle crdl =
-  GM.gmeLocal (\env -> env {GM.gmCradle = crdl})
-
-runActionWithContext :: Maybe Uri -> IdeM a -> IdeM a
-runActionWithContext Nothing action = do
-  crdl <- GM.cradle
-  liftIO $ setCurrentDirectory $ GM.cradleRootDir crdl
-  action
-runActionWithContext (Just uri) action = do
-  crdl <- getCradle uri
-  liftIO $ setCurrentDirectory $ GM.cradleRootDir crdl
-  withCradle crdl action
 
 dispatcherP :: DispatcherEnv -> TChan PluginRequest -> IdeM ()
 dispatcherP DispatcherEnv{..} pin = forever $ do

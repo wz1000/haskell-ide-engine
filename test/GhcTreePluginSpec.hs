@@ -3,8 +3,9 @@ module GhcTreePluginSpec where
 
 import           Control.Concurrent
 import           Data.Aeson
-import qualified Data.Map as Map
+import qualified Data.Map                            as Map
 import           Haskell.Ide.Engine.Monad
+import           Haskell.Ide.Engine.MonadTypes
 import           Haskell.Ide.Engine.PluginDescriptor
 import           Haskell.Ide.GhcTreePlugin
 import           TestUtils
@@ -49,14 +50,14 @@ ghctreeSpec = do
       let req = filePathToUri "./ApplyRefact.hs"
       r <- cdAndDo "./test/testdata" (dispatchRequest "ghctree" "trees" req)
       case r of
-        (IdeResponseFail f) -> fail $ show f
+        (IdeResponseFail f)  -> fail $ show f
         (IdeResponseError e) -> fail $ show e
-        _ -> return ()
+        _                    -> return ()
   describe "ghc-tree plugin commands(new plugin api)" $ do
     it "runs the trees command" $ do
       let req = treesCmd (filePathToUri "./ApplyRefact.hs")
       r <- cdAndDo "./test/testdata" (dispatchRequestP req)
       case r of
-        IdeResponseFail f -> fail $ show f
+        IdeResponseFail f  -> fail $ show f
         IdeResponseError e -> fail $ show e
-        _ -> return ()
+        _                  -> return ()
