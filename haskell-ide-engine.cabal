@@ -22,11 +22,13 @@ library
                        Haskell.Ide.Engine.Dispatcher
                        Haskell.Ide.Engine.Options
                        Haskell.Ide.Engine.Transport.LspStdio
+                       Haskell.Ide.Engine.Transport.JsonStdio
                        Haskell.Ide.Engine.Types
   other-modules:       Paths_haskell_ide_engine
   build-depends:       Cabal >= 1.22
                      , aeson
                      , base >= 4.9 && < 5
+                     , bytestring
                      , containers
                      , data-default
                      , directory

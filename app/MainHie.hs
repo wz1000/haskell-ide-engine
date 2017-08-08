@@ -21,6 +21,7 @@ import           Haskell.Ide.Engine.MonadTypes
 import           Haskell.Ide.Engine.Options
 import           Haskell.Ide.Engine.PluginDescriptor
 import           Haskell.Ide.Engine.Transport.LspStdio
+import           Haskell.Ide.Engine.Transport.JsonStdio
 import           Haskell.Ide.Engine.Types
 import           Options.Applicative.Simple
 import qualified Paths_haskell_ide_engine              as Meta
@@ -126,4 +127,5 @@ run opts = do
     if optLsp opts then
       lspStdioTransport dispatcherProcP pin origDir
     else
-      putStrLn "HIE exiting - no transport selected (available transports: --lsp)"
+      jsonStdioTransport dispatcherProcP pin
+      -- putStrLn "HIE exiting - no transport selected (available transports: --lsp)"
