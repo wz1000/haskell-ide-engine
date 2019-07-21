@@ -2,6 +2,7 @@
 {-# LANGUAGE RankNTypes   #-}
 module Main where
 
+import Debug.Trace
 import           Control.Monad
 import           Data.Monoid                           ((<>))
 import           Data.Version                          (showVersion)
@@ -138,7 +139,9 @@ run opts = do
   -- launch the dispatcher.
   if optJson opts then do
     scheduler <- newScheduler plugins' biosOptions
+
     jsonStdioTransport scheduler
   else do
     scheduler <- newScheduler plugins' biosOptions
+    traceEventIO "starting"
     lspStdioTransport scheduler origDir plugins' (optCaptureFile opts)

@@ -25,6 +25,7 @@ module Haskell.Ide.Engine.Support.HieExtras
   , getFormattingPlugin
   ) where
 
+import Debug.Trace
 import           ConLike
 import           Control.Lens.Operators                       ( (^?), (?~), (&) )
 import           Control.Lens.Prism                           ( _Just )
@@ -206,6 +207,7 @@ data CachedCompletions = CC
 
 instance ModuleCache CachedCompletions where
   cacheDataProducer tm _ = do
+    liftIO $ traceEventIO "generating completion data"
     let parsedMod = tm_parsed_module tm
         curMod = moduleName $ ms_mod $ pm_mod_summary parsedMod
         Just (_,limports,_,_) = tm_renamed_source tm
@@ -320,6 +322,7 @@ instance ModuleCache CachedCompletions where
                           (pure ([], Map.empty))
                           (\env -> GM.runLightGhc env (getModCompls env))
                           hscEnv
+
     return $ CC
       { allModNamesAsNS = allModNamesAsNS
       , unqualCompls = toplevelCompls ++ unquals
