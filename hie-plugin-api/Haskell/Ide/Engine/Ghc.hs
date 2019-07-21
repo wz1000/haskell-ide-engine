@@ -17,6 +17,7 @@ module Haskell.Ide.Engine.Ghc
   , makeRevRedirMapFunc
   ) where
 
+import Debug.Trace
 import           Bag
 import           Control.Monad.IO.Class
 import           Data.IORef
@@ -183,6 +184,7 @@ errorHandlers ghcErrRes renderSourceError = handlers
 setTypecheckedModule :: Uri -> IdeGhcM (IdeResult (Diagnostics, AdditionalErrs))
 setTypecheckedModule uri =
   pluginGetFile "setTypecheckedModule: " uri $ \fp -> do
+    liftIO $ traceEventIO "Set typechecked module"
     fileMap <- GM.getMMappedFiles
     debugm $ "setTypecheckedModule: file mapping state is: " ++ show fileMap
     rfm <- GM.mkRevRedirMapFunc

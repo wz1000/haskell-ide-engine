@@ -8,4 +8,4 @@ packages:
          ./submodules/ghc-mod/core/
          ./submodules/ghc-mod/ghc-project-types
 
-tests: true
+profiling: true
